@@ -20,27 +20,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Osmium & Spatial Python Libraries
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq osmium-tool curl
-          pip install requests geopandas shapely pyproj
-
-      - name: Download & Extract Wales OSM Dump (With Mirror Failover)
-        run: |
-          curl -4 -sSL --connect-timeout 15 --fail https://download.openstreetmap.fr/extracts/europe/united_kingdom/wales-latest.osm.pbf -o wales-latest.osm.pbf || \
-          curl -4 -sSL --connect-timeout 15 --fail https://download.geofabrik.de/europe/great-britain/wales-latest.osm.pbf -o wales-latest.osm.pbf || \
-          echo "PBF mirrors unavailable on runner ASN; falling back to multi-mirror Overpass extraction."
-
-          if [ -s wales-latest.osm.pbf ]; then
-            osmium tags-filter wales-latest.osm.pbf \
-              n/natural=spring \
-              n/emergency=defibrillator \
-              n/man_made=surveillance \
-              w/power=line \
-              -o wales_filtered.osm.pbf --overwrite
-            osmium export wales_filtered.osm.pbf -o raw_wales_assets.geojson -f geojson --add-unique-id=type_id --overwrite
-          fi
+      - name: Install Spatial Python Libraries
+        run: pip install requests geopandas shapely pyproj
 
       - name: Run Wales Spatial ETL Pipeline
         run: python pipelines/build_wales_resilience_layer.py
