@@ -26,11 +26,16 @@ jobs:
           sudo apt-get install -y -qq osmium-tool curl
           pip install requests
 
-      - name: Download & Extract Official Wales OSM Dump (Geofabrik)
+      - name: Download & Extract Wales OSM Dump (With Mirror Failover)
         run: |
-          curl -sSL --fail https://download.geofabrik.de/europe/great-britain/wales-latest.osm.pbf -o wales-latest.osm.pbf
-          osmium tags-filter wales-latest.osm.pbf n/natural=spring n/emergency=defibrillator -o wales_filtered.osm.pbf --overwrite
-          osmium export wales_filtered.osm.pbf -o raw_wales_assets.geojson -f geojson --add-unique-id=type_id --overwrite
+          curl -4 -sSL --connect-timeout 15 --fail https://download.openstreetmap.fr/extracts/europe/united_kingdom/wales-latest.osm.pbf -o wales-latest.osm.pbf || \
+          curl -4 -sSL --connect-timeout 15 --fail https://download.geofabrik.de/europe/great-britain/wales-latest.osm.pbf -o wales-latest.osm.pbf || \
+          echo "PBF mirrors blocked on runner ASN; falling back to multi-mirror Overpass extraction."
+
+          if [ -s wales-latest.osm.pbf ]; then
+            osmium tags-filter wales-latest.osm.pbf n/natural=spring n/emergency=defibrillator -o wales_filtered.osm.pbf --overwrite
+            osmium export wales_filtered.osm.pbf -o raw_wales_assets.geojson -f geojson --add-unique-id=type_id --overwrite
+          fi
 
       - name: Run Wales Resilience Extractor
         run: python pipelines/build_wales_resilience_layer.py
