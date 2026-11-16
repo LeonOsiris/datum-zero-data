@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import geopandas as gpd
 import requests
-from shapely.geometry import LineString, MultiLineString, Polygon, mapping, shape
+from shapely.geometry import LineString, Polygon, box, mapping
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,16 +23,15 @@ logging.basicConfig(
 )
 
 WALES_BBOX = [-5.5, 51.3, -2.6, 53.5]
-RAW_OSMIUM_FILE = Path("raw_wales_assets.geojson")
 OUTPUT_FILE = Path("dist/wales_resilience_master.geojson")
 
 NRW_FLOOD_WARNINGS_URL = "https://api.naturalresources.wales/flood/v1/warnings"
 NRW_RIVER_LEVELS_URL = "https://api.naturalresources.wales/flood/v1/stations"
 
 OVERPASS_MIRRORS = [
+    "https://lz4.overpass-api.de/api/interpreter",
+    "https://z.overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
-    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass-api.de/api/interpreter",
 ]
 
@@ -99,9 +98,7 @@ def parse_max_voltage(voltage_tag: Any) -> Optional[int]:
     matches = re.findall(r"\d+", str(voltage_tag))
     if not matches:
         return None
-    voltages = [int(v) for v in matches]
-    max_v = max(voltages)
-    # Normalize kV shorthand if present
+    max_v = max(int(v) for v in matches)
     if max_v in (132, 275, 400):
         max_v *= 1000
     return max_v
@@ -167,6 +164,26 @@ def build_point_feature(
     }
 
 
+def query_overpass_fast(query: str, label: str) -> Optional[Dict[str, Any]]:
+    """Execute a lightweight Overpass query with mirror failover."""
+    headers = {"User-Agent": "DatumZero-ETL/2.1 (Civil Resilience Pipeline)"}
+    for mirror_url in OVERPASS_MIRRORS:
+        logging.info("Querying Overpass (%s) via %s...", label, mirror_url)
+        try:
+            response = requests.post(
+                mirror_url,
+                data={"data": query},
+                headers=headers,
+                timeout=45,
+            )
+            response.raise_for_status()
+            return response.json()
+        except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
+            logging.warning("Mirror %s failed for %s (%s). Failing over...", mirror_url, label, exc)
+            time.sleep(2)
+    return None
+
+
 def generate_emf_corridor_polygons(
     power_lines: List[Tuple[LineString, int, str]]
 ) -> List[Dict[str, Any]]:
@@ -181,20 +198,24 @@ def generate_emf_corridor_polygons(
     ]
     gdf = gpd.GeoDataFrame(records, crs="EPSG:4326").to_crs(epsg=27700)
 
-    # Apply exact metric buffer per voltage tier
     gdf["geometry"] = gdf.apply(
         lambda row: row.geometry.buffer(row["buffer_m"], cap_style="round"), axis=1
     )
 
-    # Dissolve overlapping corridor segments per voltage tier and simplify for WebGL
     dissolved = gdf.dissolve(by="tier", as_index=False)
     dissolved["geometry"] = dissolved["geometry"].simplify(
-        tolerance=12.0, preserve_topology=True
+        tolerance=15.0, preserve_topology=True
     )
     dissolved = dissolved.to_crs(epsg=4326)
 
+    # Clip dissolved polygons cleanly to the Wales bounding box
+    wales_clip = box(*WALES_BBOX)
+    dissolved["geometry"] = dissolved["geometry"].intersection(wales_clip)
+
     features: List[Dict[str, Any]] = []
     for idx, row in dissolved.iterrows():
+        if row.geometry.is_empty:
+            continue
         geom_dict = mapping(row.geometry)
         geom_dict["coordinates"] = round_coordinates(geom_dict["coordinates"], 5)
         buf_m = int(row["buffer_m"])
@@ -219,9 +240,106 @@ def generate_emf_corridor_polygons(
     return features
 
 
+def load_cached_osm_features() -> List[Dict[str, Any]]:
+    """Preserve previously compiled OSM features if all Overpass mirrors are temporarily busy."""
+    if not OUTPUT_FILE.exists():
+        return []
+    try:
+        with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+        preserved = [
+            feat
+            for feat in existing.get("features", [])
+            if str(feat.get("properties", {}).get("id", "")).startswith(
+                ("RESUPPLY_", "MEDICAL_", "BASELINE_", "EMF_CORRIDOR_")
+            )
+        ]
+        logging.info("Loaded %d cached OSM features from existing GeoJSON.", len(preserved))
+        return preserved
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def harvest_osm_layers() -> List[Dict[str, Any]]:
+    """Extract OSM POIs and high-voltage power corridors via fast split queries."""
+    min_lon, min_lat, max_lon, max_lat = WALES_BBOX
+    bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+
+    # Query 1: Fast Point POI extraction (springs, AEDs, public surveillance)
+    poi_query = f"""
+    [out:json][timeout:45];
+    (
+      node["natural"="spring"]({bbox_str});
+      node["emergency"="defibrillator"]({bbox_str});
+      node["man_made"="surveillance"]({bbox_str});
+    );
+    out body;
+    """
+    poi_data = query_overpass_fast(poi_query, "POIs")
+
+    time.sleep(2)
+
+    # Query 2: Fast inline geometry query for transmission lines (no regex, no recursive node lookup)
+    power_query = f"""
+    [out:json][timeout:45];
+    way["power"="line"]({bbox_str});
+    out geom;
+    """
+    power_data = query_overpass_fast(power_query, "PowerLines")
+
+    if not poi_data and not power_data:
+        logging.warning("All Overpass mirrors unreachable; falling back to cached OSM features.")
+        return load_cached_osm_features()
+
+    point_features: List[Dict[str, Any]] = []
+    if poi_data:
+        for el in poi_data.get("elements", []):
+            lat = el.get("lat")
+            lon = el.get("lon")
+            if lat is None or lon is None:
+                continue
+            pt = build_point_feature(
+                str(el["id"]), float(lon), float(lat), el.get("tags", {})
+            )
+            if pt:
+                point_features.append(pt)
+    else:
+        # Preserve cached points if only POI query timed out
+        point_features = [
+            f for f in load_cached_osm_features()
+            if f.get("geometry", {}).get("type") == "Point"
+        ]
+
+    power_lines: List[Tuple[LineString, int, str]] = []
+    if power_data:
+        for el in power_data.get("elements", []):
+            if el.get("type") != "way":
+                continue
+            tags = el.get("tags", {})
+            max_v = parse_max_voltage(tags.get("voltage"))
+            emf_meta = classify_emf_buffer(max_v)
+            if not emf_meta:
+                continue
+            raw_geom = el.get("geometry", [])
+            coords = [
+                (float(pt["lon"]), float(pt["lat"]))
+                for pt in raw_geom
+                if "lon" in pt and "lat" in pt
+            ]
+            if len(coords) >= 2:
+                power_lines.append((LineString(coords), emf_meta[0], emf_meta[1]))
+        emf_polygons = generate_emf_corridor_polygons(power_lines)
+    else:
+        emf_polygons = [
+            f for f in load_cached_osm_features()
+            if f.get("geometry", {}).get("type") in ("Polygon", "MultiPolygon")
+        ]
+
+    return point_features + emf_polygons
+
+
 def get_static_civil_hazard_polygons() -> List[Dict[str, Any]]:
     """Return statutory civil protection disruption buffers (National Security Act 2023 compliant)."""
-    # Llyn Peris / Llanberis valley hydrological tailrace & road cordon buffer
     llanberis_corridor = Polygon(
         [
             [-4.1460, 53.1360],
@@ -253,7 +371,7 @@ def get_static_civil_hazard_polygons() -> List[Dict[str, Any]]:
 
 def harvest_nrw_telemetry() -> List[Dict[str, Any]]:
     """Poll Natural Resources Wales API for active flood warnings and river gauges."""
-    headers = {"User-Agent": "DatumZero-ETL/2.0 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/2.1 (Civil Resilience Pipeline)"}
     features: List[Dict[str, Any]] = []
 
     try:
@@ -356,120 +474,8 @@ def get_repeater_features() -> List[Dict[str, Any]]:
     ]
 
 
-def parse_local_osmium_geojson(path: Path) -> List[Dict[str, Any]]:
-    """Parse pre-filtered Wales GeoJSON exported by osmium-tool."""
-    logging.info("Reading local Osmium extract from %s...", path)
-    with open(path, "r", encoding="utf-8") as f:
-        raw_data = json.load(f)
-
-    point_features: List[Dict[str, Any]] = []
-    power_lines: List[Tuple[LineString, int, str]] = []
-
-    for idx, feat in enumerate(raw_data.get("features", [])):
-        geom = feat.get("geometry")
-        if not geom:
-            continue
-        geom_type = geom.get("type")
-        tags = feat.get("properties", {})
-        raw_id = str(feat.get("id", idx)).lstrip("nwr")
-
-        if geom_type == "Point":
-            coords = geom.get("coordinates", [])
-            if len(coords) >= 2:
-                pt = build_point_feature(raw_id, float(coords[0]), float(coords[1]), tags)
-                if pt:
-                    point_features.append(pt)
-        elif geom_type in ("LineString", "MultiLineString") and tags.get("power") == "line":
-            max_v = parse_max_voltage(tags.get("voltage"))
-            emf_meta = classify_emf_buffer(max_v)
-            if emf_meta:
-                shp = shape(geom)
-                if isinstance(shp, (LineString, MultiLineString)) and not shp.is_empty:
-                    power_lines.append((shp, emf_meta[0], emf_meta[1]))
-
-    emf_polygons = generate_emf_corridor_polygons(power_lines)
-    return point_features + emf_polygons
-
-
-def harvest_overpass_fallback() -> List[Dict[str, Any]]:
-    """Fallback extraction across redundant Overpass mirrors if PBF download is blocked."""
-    min_lon, min_lat, max_lon, max_lat = WALES_BBOX
-    bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
-
-    query = f"""
-    [out:json][timeout:90];
-    (
-      node["natural"="spring"]({bbox_str});
-      node["emergency"="defibrillator"]({bbox_str});
-      node["man_made"="surveillance"]({bbox_str});
-      way["power"="line"]["voltage"~"132000|275000|400000"]({bbox_str});
-    );
-    out body;
-    >;
-    out skel qt;
-    """
-    headers = {"User-Agent": "DatumZero-ETL/2.0 (Civil Resilience Pipeline)"}
-
-    data: Dict[str, Any] = {}
-    for mirror_url in OVERPASS_MIRRORS:
-        logging.info("Querying Overpass mirror: %s", mirror_url)
-        try:
-            response = requests.post(
-                mirror_url, data={"data": query}, headers=headers, timeout=90
-            )
-            response.raise_for_status()
-            data = response.json()
-            break
-        except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
-            logging.warning("Mirror %s failed (%s). Failing over...", mirror_url, exc)
-            time.sleep(2)
-
-    if not data:
-        logging.error("All Overpass mirrors failed.")
-        sys.exit(1)
-
-    node_lookup: Dict[int, Tuple[float, float]] = {}
-    for el in data.get("elements", []):
-        if el.get("type") == "node" and "lat" in el and "lon" in el:
-            node_lookup[el["id"]] = (float(el["lon"]), float(el["lat"]))
-
-    point_features: List[Dict[str, Any]] = []
-    power_lines: List[Tuple[LineString, int, str]] = []
-
-    for el in data.get("elements", []):
-        el_type = el.get("type")
-        tags = el.get("tags", {})
-        if not tags:
-            continue
-
-        if el_type == "node" and "lat" in el and "lon" in el:
-            pt = build_point_feature(
-                str(el["id"]), float(el["lon"]), float(el["lat"]), tags
-            )
-            if pt:
-                point_features.append(pt)
-        elif el_type == "way" and tags.get("power") == "line":
-            max_v = parse_max_voltage(tags.get("voltage"))
-            emf_meta = classify_emf_buffer(max_v)
-            if emf_meta:
-                coords = [
-                    node_lookup[nid]
-                    for nid in el.get("nodes", [])
-                    if nid in node_lookup
-                ]
-                if len(coords) >= 2:
-                    power_lines.append((LineString(coords), emf_meta[0], emf_meta[1]))
-
-    emf_polygons = generate_emf_corridor_polygons(power_lines)
-    return point_features + emf_polygons
-
-
 def main() -> None:
-    if RAW_OSMIUM_FILE.exists():
-        osm_features = parse_local_osmium_geojson(RAW_OSMIUM_FILE)
-    else:
-        osm_features = harvest_overpass_fallback()
-
+    osm_features = harvest_osm_layers()
     repeater_features = get_repeater_features()
     civil_hazard_polygons = get_static_civil_hazard_polygons()
     nrw_features = harvest_nrw_telemetry()
@@ -479,7 +485,7 @@ def main() -> None:
     )
 
     if not all_features:
-        logging.warning("No features extracted. Aborting write.")
+        logging.error("Zero features compiled across all sources. Aborting write.")
         sys.exit(1)
 
     geojson = {
