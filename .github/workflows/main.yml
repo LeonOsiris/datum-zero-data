@@ -20,8 +20,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install requests
+      - name: Install Osmium & Python dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool curl
+          pip install requests
+
+      - name: Download & Extract Official Wales OSM Dump (Geofabrik)
+        run: |
+          curl -sSL --fail https://download.geofabrik.de/europe/great-britain/wales-latest.osm.pbf -o wales-latest.osm.pbf
+          osmium tags-filter wales-latest.osm.pbf n/natural=spring n/emergency=defibrillator -o wales_filtered.osm.pbf --overwrite
+          osmium export wales_filtered.osm.pbf -o raw_wales_assets.geojson -f geojson --add-unique-id=type_id --overwrite
 
       - name: Run Wales Resilience Extractor
         run: python pipelines/build_wales_resilience_layer.py
