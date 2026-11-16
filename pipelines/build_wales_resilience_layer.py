@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import geopandas as gpd
 import requests
-from shapely.geometry import LineString, Point, Polygon, box, mapping, shape
+from shapely.geometry import LineString, Point, box, mapping, shape
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,8 +25,6 @@ logging.basicConfig(
 
 WALES_BBOX = [-5.5, 51.3, -2.6, 53.5]
 OUTPUT_FILE = Path("dist/wales_resilience_master.geojson")
-
-# Keyless OGC WFS endpoint on DataMapWales (Welsh Government Open Data - OGL v3.0)
 DATAMAPWALES_WFS_URL = "https://datamap.gov.wales/geoserver/ows"
 
 OVERPASS_MIRRORS = [
@@ -36,7 +34,6 @@ OVERPASS_MIRRORS = [
     "https://overpass-api.de/api/interpreter",
 ]
 
-# Verified RSGB ETCC Amateur Radio Repeaters across Wales
 VERIFIED_WELSH_REPEATERS: List[Dict[str, Any]] = [
     {
         "id": "COM_GB3AR",
@@ -82,7 +79,6 @@ VERIFIED_WELSH_REPEATERS: List[Dict[str, Any]] = [
     },
 ]
 
-# Statutory NRW River Telemetry Stations across major Welsh spate basins
 VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
     {
         "id": "NRW_GAUGE_GLASLYN",
@@ -142,7 +138,6 @@ VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
     },
 ]
 
-# Statutory HSE Public COMAH Upper/Lower-Tier Industrial Sites in Wales (with metric clearance radius)
 VERIFIED_COMAH_SITES: List[Dict[str, Any]] = [
     {
         "id": "COMAH_PEMBROKE",
@@ -186,7 +181,6 @@ VERIFIED_COMAH_SITES: List[Dict[str, Any]] = [
     },
 ]
 
-# Major Welsh River Flood Plain & Hydrological Disruption Corridors
 VERIFIED_FLOOD_CORRIDORS: List[Dict[str, Any]] = [
     {
         "id": "HAZ_FLOOD_LLYN_PERIS",
@@ -254,20 +248,16 @@ def make_feathered_metric_polygons(
     halo_extra_m: float,
     base_props: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
-    """
-    Create two true geographic polygons in British National Grid (EPSG:27700):
-    1. Core threat zone (`cloudRing: 'core'`) at exact physical radius.
-    2. Outer atmospheric dispersion ring (`cloudRing: 'halo'`) slightly wider in true meters.
-    This guarantees soft-edged Threat Clouds locked to real-world scale at all zoom levels.
-    """
+    """Create concentric core and dispersion halo polygons in British National Grid (EPSG:27700)."""
     gdf = gpd.GeoDataFrame([{"geometry": geom_wgs84}], crs="EPSG:4326").to_crs(epsg=27700)
+    raw_bng = gdf.geometry.iloc[0]
 
-    core_geom = gdf.geometry.iloc[0].buffer(core_buffer_m, cap_style="round").simplify(
+    core_geom = raw_bng.buffer(core_buffer_m, cap_style="round").simplify(
         tolerance=10.0, preserve_topology=True
     )
-    halo_geom = gdf.geometry.iloc[0].buffer(
-        core_buffer_m + halo_extra_m, cap_style="round"
-    ).simplify(tolerance=14.0, preserve_topology=True)
+    halo_geom = raw_bng.buffer(core_buffer_m + halo_extra_m, cap_style="round").simplify(
+        tolerance=14.0, preserve_topology=True
+    )
 
     core_wgs = gpd.GeoSeries([core_geom], crs="EPSG:27700").to_crs(epsg=4326).iloc[0]
     halo_wgs = gpd.GeoSeries([halo_geom], crs="EPSG:27700").to_crs(epsg=4326).iloc[0]
@@ -280,28 +270,27 @@ def make_feathered_metric_polygons(
     if not halo_wgs.is_empty:
         halo_dict = mapping(halo_wgs)
         halo_dict["coordinates"] = round_coordinates(halo_dict["coordinates"], 5)
+        halo_props = dict(base_props)
+        halo_props["id"] = f"{base_props['id']}_HALO"
+        halo_props["cloudRing"] = "halo"
         out.append(
             {
                 "type": "Feature",
                 "geometry": halo_dict,
-                "properties": {
-                    **base_props,
-                    "id": f"{base_props['id']}_HALO",
-                    "cloudRing": "halo",
-                },
+                "properties": halo_props,
             }
         )
+
     if not core_wgs.is_empty:
         core_dict = mapping(core_wgs)
         core_dict["coordinates"] = round_coordinates(core_dict["coordinates"], 5)
+        core_props = dict(base_props)
+        core_props["cloudRing"] = "core"
         out.append(
             {
                 "type": "Feature",
                 "geometry": core_dict,
-                "properties": {
-                    **base_props,
-                    "cloudRing": "core",
-                },
+                "properties": core_props,
             }
         )
     return out
@@ -378,4 +367,456 @@ def build_point_feature(
             "type": "Point",
             "coordinates": [round(lon, 6), round(lat, 6)],
         },
-        "properties":
+        "properties": {
+            "id": f"{category.upper()}_{raw_id}",
+            "name": tags.get("name", default_name),
+            "category": category,
+            "categoryLabel": label,
+            "accentColor": accent,
+            "threatWeight": weight,
+            "primaryMetric": metric,
+            "operationalAction": action,
+        },
+    }
+
+
+def query_overpass_fast(query: str, label: str) -> Optional[Dict[str, Any]]:
+    """Execute a lightweight Overpass query with mirror failover."""
+    headers = {"User-Agent": "DatumZero-ETL/3.1 (Civil Resilience Pipeline)"}
+    for mirror_url in OVERPASS_MIRRORS:
+        logging.info("Querying Overpass (%s) via %s...", label, mirror_url)
+        try:
+            response = requests.post(
+                mirror_url,
+                data={"data": query},
+                headers=headers,
+                timeout=45,
+            )
+            response.raise_for_status()
+            return response.json()
+        except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
+            logging.warning("Mirror %s failed for %s (%s). Failing over...", mirror_url, label, exc)
+            time.sleep(2)
+    return None
+
+
+def generate_emf_corridor_polygons(
+    power_lines: List[Tuple[LineString, int, str]]
+) -> List[Dict[str, Any]]:
+    """Buffer high-voltage lines in British National Grid (EPSG:27700) with true metric halo."""
+    if not power_lines:
+        return []
+
+    logging.info("Computing fixed-scale 50Hz EMF buffers for %d segments...", len(power_lines))
+    records = [
+        {"geometry": geom, "buffer_m": buf, "tier": tier}
+        for geom, buf, tier in power_lines
+    ]
+    gdf = gpd.GeoDataFrame(records, crs="EPSG:4326").to_crs(epsg=27700)
+
+    gdf["core_geom"] = gdf.apply(
+        lambda row: row.geometry.buffer(row["buffer_m"], cap_style="round"),
+        axis=1,
+    )
+    gdf["halo_geom"] = gdf.apply(
+        lambda row: row.geometry.buffer(row["buffer_m"] * 1.45, cap_style="round"),
+        axis=1,
+    )
+
+    wales_clip = box(*WALES_BBOX)
+    features: List[Dict[str, Any]] = []
+
+    for tier, group in gdf.groupby("tier"):
+        buf_m = int(group["buffer_m"].iloc[0])
+        core_series = gpd.GeoSeries(group["core_geom"], crs="EPSG:27700")
+        halo_series = gpd.GeoSeries(group["halo_geom"], crs="EPSG:27700")
+
+        core_union = (
+            core_series.union_all()
+            if hasattr(core_series, "union_all")
+            else core_series.unary_union
+        ).simplify(12.0, preserve_topology=True)
+        halo_union = (
+            halo_series.union_all()
+            if hasattr(halo_series, "union_all")
+            else halo_series.unary_union
+        ).simplify(16.0, preserve_topology=True)
+
+        core_wgs = (
+            gpd.GeoSeries([core_union], crs="EPSG:27700")
+            .to_crs(epsg=4326)
+            .iloc[0]
+            .intersection(wales_clip)
+        )
+        halo_wgs = (
+            gpd.GeoSeries([halo_union], crs="EPSG:27700")
+            .to_crs(epsg=4326)
+            .iloc[0]
+            .intersection(wales_clip)
+        )
+
+        base_props: Dict[str, Any] = {
+            "id": f"EMF_CORRIDOR_{buf_m}M",
+            "name": f"{tier} 50Hz EMF Corridor",
+            "category": "grid_down",
+            "categoryLabel": "HIGH-VOLTAGE EMF BUFFER",
+            "accentColor": "#FFB800",
+            "threatWeight": 2.0,
+            "primaryMetric": f"True Ground Buffer: {buf_m}m | Compass & RF Interference",
+            "operationalAction": "Expect magnetometer deviation and storm line-drop hazard. Maintain clearance.",
+        }
+
+        if not halo_wgs.is_empty:
+            h_dict = mapping(halo_wgs)
+            h_dict["coordinates"] = round_coordinates(h_dict["coordinates"], 5)
+            h_props = dict(base_props)
+            h_props["id"] = f"{base_props['id']}_HALO"
+            h_props["cloudRing"] = "halo"
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": h_dict,
+                    "properties": h_props,
+                }
+            )
+
+        if not core_wgs.is_empty:
+            c_dict = mapping(core_wgs)
+            c_dict["coordinates"] = round_coordinates(c_dict["coordinates"], 5)
+            c_props = dict(base_props)
+            c_props["cloudRing"] = "core"
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": c_dict,
+                    "properties": c_props,
+                }
+            )
+    return features
+
+
+def generate_bridge_choke_polygons(
+    bridge_lines: List[Tuple[LineString, str]]
+) -> List[Dict[str, Any]]:
+    """Generate 160m fixed-scale metric choke-point buffers around trunk/primary bridges."""
+    if not bridge_lines:
+        return []
+
+    logging.info("Generating fixed-scale choke-point polygons for %d major bridges...", len(bridge_lines))
+    records = [{"geometry": geom, "name": name} for geom, name in bridge_lines]
+    gdf = gpd.GeoDataFrame(records, crs="EPSG:4326").to_crs(epsg=27700)
+
+    gdf["geometry"] = gdf.geometry.buffer(160.0, cap_style="round")
+    dissolved = gdf.dissolve().explode(index_parts=False).reset_index(drop=True)
+    dissolved["halo_geom"] = dissolved.geometry.buffer(80.0, cap_style="round")
+
+    core_wgs = dissolved.to_crs(epsg=4326)
+    halo_wgs = gpd.GeoSeries(dissolved["halo_geom"], crs="EPSG:27700").to_crs(epsg=4326)
+    wales_clip = box(*WALES_BBOX)
+
+    features: List[Dict[str, Any]] = []
+    for idx in range(len(core_wgs)):
+        c_geom = core_wgs.geometry.iloc[idx].intersection(wales_clip)
+        h_geom = halo_wgs.iloc[idx].intersection(wales_clip)
+        if c_geom.is_empty:
+            continue
+
+        base_props: Dict[str, Any] = {
+            "id": f"HAZ_CHOKE_BRIDGE_{idx}",
+            "name": "Strategic Trunk Bridge Choke Point",
+            "category": "hazards",
+            "categoryLabel": "SINGLE-ACCESS BRIDGE DEFILE",
+            "accentColor": "#FFB800",
+            "threatWeight": 5.0,
+            "primaryMetric": "Survival Penalty: W_choke +5.0 | 160m Corridor Buffer",
+            "operationalAction": "Primary river/valley crossing bottleneck. Vulnerable to flood debris, closure, or gridlock.",
+        }
+
+        if not h_geom.is_empty:
+            h_dict = mapping(h_geom)
+            h_dict["coordinates"] = round_coordinates(h_dict["coordinates"], 5)
+            h_props = dict(base_props)
+            h_props["id"] = f"{base_props['id']}_HALO"
+            h_props["cloudRing"] = "halo"
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": h_dict,
+                    "properties": h_props,
+                }
+            )
+
+        c_dict = mapping(c_geom)
+        c_dict["coordinates"] = round_coordinates(c_dict["coordinates"], 5)
+        c_props = dict(base_props)
+        c_props["cloudRing"] = "core"
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": c_dict,
+                "properties": c_props,
+            }
+        )
+    return features
+
+
+def harvest_datamapwales_flood_zones() -> List[Dict[str, Any]]:
+    """Query keyless DataMapWales OGC WFS for NRW Flood Zone 3 polygons across Wales."""
+    params = {
+        "service": "WFS",
+        "version": "2.0.0",
+        "request": "GetFeature",
+        "typeName": "inspire-nrw:NRW_FLOOD_MAP_FLOOD_ZONE_3_RIVERS_AND_SEA",
+        "outputFormat": "application/json",
+        "srsName": "EPSG:4326",
+        "count": "150",
+    }
+    headers = {"User-Agent": "DatumZero-ETL/3.1 (Civil Resilience Pipeline)"}
+    features: List[Dict[str, Any]] = []
+
+    try:
+        logging.info("Querying DataMapWales WFS for NRW Flood Zone 3 polygons...")
+        res = requests.get(DATAMAPWALES_WFS_URL, params=params, headers=headers, timeout=25)
+        if res.status_code == 200:
+            data = res.json()
+            raw_feats = data.get("features", [])
+            logging.info("Retrieved %d NRW Flood Zone 3 polygons from DataMapWales.", len(raw_feats))
+            for idx, item in enumerate(raw_feats):
+                geom = item.get("geometry")
+                if not geom:
+                    continue
+                shp = shape(geom).simplify(0.0003, preserve_topology=True)
+                if shp.is_empty:
+                    continue
+                g_dict = mapping(shp)
+                g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 5)
+                features.append(
+                    {
+                        "type": "Feature",
+                        "geometry": g_dict,
+                        "properties": {
+                            "id": f"NRW_FZ3_{idx}",
+                            "name": "NRW Statutory Flood Zone 3 (Rivers & Sea)",
+                            "category": "hazards",
+                            "categoryLabel": "NRW FLOOD ZONE 3 POLYGON",
+                            "accentColor": "#FF3B30",
+                            "threatWeight": 10.0,
+                            "cloudRing": "core",
+                            "primaryMetric": "High Fluvial/Tidal Probability | W_flood +10.0",
+                            "operationalAction": "Statutory 1-in-30-yr floodplain. Avoid low-lying roads during severe weather.",
+                        },
+                    }
+                )
+        else:
+            logging.info("DataMapWales WFS returned HTTP %s; using verified Welsh basin corridors.", res.status_code)
+    except (requests.RequestException, ValueError) as exc:
+        logging.warning("DataMapWales WFS skipped (%s); using verified Welsh basin corridors.", exc)
+
+    return features
+
+
+def build_verified_hazard_layers() -> List[Dict[str, Any]]:
+    """Compile statutory NRW gauges, COMAH exclusion buffers, and Welsh valley flood plains."""
+    features: List[Dict[str, Any]] = []
+
+    for g in VERIFIED_NRW_GAUGES:
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": g["coords"]},
+                "properties": {
+                    "id": g["id"],
+                    "name": g["name"],
+                    "category": "hazards",
+                    "categoryLabel": "NRW RIVER TELEMETRY",
+                    "accentColor": "#FF3B30",
+                    "threatWeight": 5.0,
+                    "primaryMetric": g["metric"],
+                    "operationalAction": g["action"],
+                },
+            }
+        )
+
+    for site in VERIFIED_COMAH_SITES:
+        pt = Point(site["coords"][0], site["coords"][1])
+        base_props = {
+            "id": site["id"],
+            "name": site["name"],
+            "category": "hazards",
+            "categoryLabel": "HSE COMAH HAZMAT BUFFER",
+            "accentColor": "#FF3B30",
+            "threatWeight": 8.0,
+            "primaryMetric": site["metric"],
+            "operationalAction": site["action"],
+        }
+        features.extend(
+            make_feathered_metric_polygons(
+                pt,
+                core_buffer_m=float(site["radius_m"]),
+                halo_extra_m=float(site["radius_m"]) * 0.4,
+                base_props=base_props,
+            )
+        )
+
+    for corr in VERIFIED_FLOOD_CORRIDORS:
+        line = LineString(corr["line"])
+        base_props = {
+            "id": corr["id"],
+            "name": corr["name"],
+            "category": "hazards",
+            "categoryLabel": "FLOOD & HYDROLOGICAL CORRIDOR",
+            "accentColor": "#FF3B30",
+            "threatWeight": 10.0,
+            "primaryMetric": corr["metric"],
+            "operationalAction": corr["action"],
+        }
+        features.extend(
+            make_feathered_metric_polygons(
+                line,
+                core_buffer_m=float(corr["buffer_m"]),
+                halo_extra_m=float(corr["buffer_m"]) * 0.45,
+                base_props=base_props,
+            )
+        )
+
+    return features
+
+
+def get_repeater_features() -> List[Dict[str, Any]]:
+    """Return normalized GeoJSON features for verified RSGB Welsh repeaters."""
+    return [
+        {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": rep["coords"]},
+            "properties": {
+                "id": rep["id"],
+                "name": rep["name"],
+                "category": "grid_down",
+                "categoryLabel": "RSGB AMATEUR REPEATER",
+                "accentColor": "#FFB800",
+                "threatWeight": 0.0,
+                "primaryMetric": rep["metric"],
+                "operationalAction": rep["action"],
+            },
+        }
+        for rep in VERIFIED_WELSH_REPEATERS
+    ]
+
+
+def harvest_osm_layers() -> List[Dict[str, Any]]:
+    """Extract OSM POIs, fords, trunk bridges, and high-voltage power lines."""
+    min_lon, min_lat, max_lon, max_lat = WALES_BBOX
+    bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+
+    poi_query = f"""
+    [out:json][timeout:45];
+    (
+      node["natural"="spring"]({bbox_str});
+      node["emergency"="defibrillator"]({bbox_str});
+      node["man_made"="surveillance"]({bbox_str});
+      node["ford"="yes"]({bbox_str});
+    );
+    out body;
+    """
+    poi_data = query_overpass_fast(poi_query, "POIs & Fords")
+    time.sleep(2)
+
+    power_query = f"""
+    [out:json][timeout:45];
+    way["power"="line"]({bbox_str});
+    out geom;
+    """
+    power_data = query_overpass_fast(power_query, "PowerLines")
+    time.sleep(2)
+
+    bridge_query = f"""
+    [out:json][timeout:45];
+    way["bridge"="yes"]["highway"~"^(trunk|primary)$"]({bbox_str});
+    out geom;
+    """
+    bridge_data = query_overpass_fast(bridge_query, "TrunkBridges")
+
+    point_features: List[Dict[str, Any]] = []
+    if poi_data:
+        for el in poi_data.get("elements", []):
+            lat = el.get("lat")
+            lon = el.get("lon")
+            if lat is None or lon is None:
+                continue
+            pt = build_point_feature(
+                str(el["id"]), float(lon), float(lat), el.get("tags", {})
+            )
+            if pt:
+                point_features.append(pt)
+
+    power_lines: List[Tuple[LineString, int, str]] = []
+    if power_data:
+        for el in power_data.get("elements", []):
+            if el.get("type") != "way":
+                continue
+            tags = el.get("tags", {})
+            emf_meta = classify_emf_buffer(parse_max_voltage(tags.get("voltage")))
+            if not emf_meta:
+                continue
+            coords = [
+                (float(pt["lon"]), float(pt["lat"]))
+                for pt in el.get("geometry", [])
+                if "lon" in pt and "lat" in pt
+            ]
+            if len(coords) >= 2:
+                power_lines.append((LineString(coords), emf_meta[0], emf_meta[1]))
+
+    bridge_lines: List[Tuple[LineString, str]] = []
+    if bridge_data:
+        for el in bridge_data.get("elements", []):
+            if el.get("type") != "way":
+                continue
+            tags = el.get("tags", {})
+            coords = [
+                (float(pt["lon"]), float(pt["lat"]))
+                for pt in el.get("geometry", [])
+                if "lon" in pt and "lat" in pt
+            ]
+            if len(coords) >= 2:
+                bridge_lines.append((LineString(coords), tags.get("name", "Trunk Bridge")))
+
+    emf_polygons = generate_emf_corridor_polygons(power_lines)
+    bridge_polygons = generate_bridge_choke_polygons(bridge_lines)
+
+    return point_features + emf_polygons + bridge_polygons
+
+
+def main() -> None:
+    osm_features = harvest_osm_layers()
+    repeater_features = get_repeater_features()
+    verified_hazards = build_verified_hazard_layers()
+    dmw_flood_zones = harvest_datamapwales_flood_zones()
+
+    all_features = (
+        osm_features + repeater_features + verified_hazards + dmw_flood_zones
+    )
+
+    if not all_features:
+        logging.error("Zero features compiled across all sources. Aborting write.")
+        sys.exit(1)
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": all_features,
+    }
+
+    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(geojson, f, separators=(",", ":"))
+
+    size_kb = OUTPUT_FILE.stat().st_size / 1024
+    logging.info(
+        "Success: Compiled %d verified Welsh features into %s (%.1f KB)",
+        len(all_features),
+        OUTPUT_FILE,
+        size_kb,
+    )
+
+
+if __name__ == "__main__":
+    main()
