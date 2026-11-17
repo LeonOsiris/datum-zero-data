@@ -2,28 +2,15 @@
 pipelines/build_wales_resilience_layer.py
 Deterministic zero-token spatial ETL compiling Welsh open data into Datum Zero GeoJSON.
 
-Layers Compiled:
-1. Grid Down (Comms & Power):
-   - 50Hz High-Voltage EMF Corridors (132kV: 50m, 275kV: 100m, 400kV: 150m in EPSG:27700)
-   - Topological Cellular Dead Zones (W_signal = 2.5 valley blackout shadows)
-   - High-Power RF Transmitter Footprints (Wenvoe, Moel-y-Parc, Blaenplwyf, Llanddona)
-   - RSGB ETCC 2m/70cm Amateur Radio Repeaters
-2. Hazards & Choke Points:
-   - NRW Flood Zone 3 Polygons (DataMapWales WFS) & Major Welsh River Floodplains (W_flood = 10.0)
-   - Statutory NRW River Telemetry Gauges (18 basins) & Vehicular River Fords
-   - Single-Access Trunk/Primary Bridge Choke Defiles (160m metric buffer, W_choke = 5.0)
-   - HSE COMAH Upper/Lower-Tier Chemical Exclusion Buffers (W_comah = 8.0)
-   - UKHSA / BGS Radon Gas Action Zones (>10% to >30% exceeding 200 Bq/m3)
-   - DEFRA UK-AIR / AURN Hourly Toxic Particulate (PM2.5/PM10) Monitoring Stations
-   - Physical Terrain, Tidal Stranding & DfT STATS19 Road Defile Clusters (Suicide Act 1961 compliant)
-3. Resupply & Water:
-   - Natural Bedrock Springs (OSM + BGS)
-   - Public Automated External Defibrillators (AEDs) & NHS Wales Minor Injury Trauma Units
-   - Ancient Woodland Legal Foraging Biomes (Theft Act 1968 compliant; wild fungi excluded)
-   - Sites of Special Scientific Interest (SSSIs — flagged "Foraging Prohibited", WCA 1981)
-4. Tactical Baseline:
-   - Designated Open Access Land (CRoW Act 2000 — legal off-trail access & bivouac zones)
-   - Municipal & Highway Traffic CCTV Cameras (OSM + Traffic Wales)
+Visual & Geometric Architecture:
+- Zero squares, rectangles, or pixel-scaled circles.
+- Every areal zone (floodplains, 50Hz EMF corridors, cellular dead zones, COMAH buffers,
+  Radon action belts, SSSIs, Ancient Woodland biomes, CRoW Open Access massifs) is shaped
+  as a multi-vertex natural geographic footprint and morphologically rounded in British
+  National Grid (EPSG:27700) into three concentric feathered dispersion shells:
+    * cloudRing: "core" (inner physical boundary)
+    * cloudRing: "mid"  (soft intermediate dispersion plume)
+    * cloudRing: "halo" (outer vaporous atmospheric fade)
 """
 
 import json
@@ -120,53 +107,53 @@ VERIFIED_WELSH_REPEATERS: List[Dict[str, Any]] = [
     },
 ]
 
-# Topological Cellular Dead Zones (4-MNO Combined Shadows feeding W_signal = 2.5)
+# Topological Cellular Dead Zones (Winding valley corridors -> organic ribbon clouds)
 VERIFIED_CELLULAR_DEAD_ZONES: List[Dict[str, Any]] = [
     {
         "id": "SIG_DEAD_OGWEN",
         "name": "Nant Ffrancon & Ogwen Valley Cellular Dead Zone",
-        "line": [[-4.0520, 53.1620], [-4.0180, 53.1260], [-3.9650, 53.1050]],
-        "buffer_m": 1100,
+        "line": [[-4.0560, 53.1680], [-4.0340, 53.1440], [-4.0160, 53.1240], [-3.9880, 53.1120], [-3.9580, 53.1030]],
+        "buffer_m": 950,
         "metric": "4-MNO Blackout (EE/Three/O2/Vodafone) | W_signal +2.5",
         "action": "Deep glaciated trough blocks mast line-of-sight. Use 2m VHF 145.500 MHz or GB3AR (145.725 MHz).",
     },
     {
         "id": "SIG_DEAD_LLANBERIS_PASS",
         "name": "Llanberis Pass & Pen-y-Pass Signal Shadow",
-        "line": [[-4.1050, 53.1080], [-4.0520, 53.0920], [-3.9850, 53.0820]],
-        "buffer_m": 1000,
+        "line": [[-4.1080, 53.1110], [-4.0750, 53.0990], [-4.0420, 53.0890], [-4.0120, 53.0800], [-3.9820, 53.0830]],
+        "buffer_m": 900,
         "metric": "4-MNO Blackout | Glaciated Slate Gorge | W_signal +2.5",
         "action": "Zero mobile data or 999 voice inside pass. Climb above 450m ridge or relay via Capel Curig.",
     },
     {
         "id": "SIG_DEAD_RHINOGYDD",
         "name": "Rhinogydd & Coed y Brenin Interior Dead Zone",
-        "line": [[-4.0150, 52.8650], [-3.9450, 52.8250], [-3.8950, 52.7850]],
-        "buffer_m": 1800,
+        "line": [[-4.0220, 52.8740], [-3.9850, 52.8480], [-3.9420, 52.8220], [-3.9120, 52.7960], [-3.8880, 52.7750]],
+        "buffer_m": 1500,
         "metric": "4-MNO Blackout | Cambrian Shielding | W_signal +2.5",
         "action": "Persistent upland shadow across Ardudwy range. Pre-cache offline route before entering.",
     },
     {
         "id": "SIG_DEAD_BERWYN",
         "name": "Berwyn Mountains & Milltir Cerrig Signal Shadow",
-        "line": [[-3.5950, 52.8850], [-3.5350, 52.8550], [-3.4650, 52.8250]],
-        "buffer_m": 1600,
+        "line": [[-3.6050, 52.8910], [-3.5680, 52.8710], [-3.5320, 52.8520], [-3.4920, 52.8360], [-3.4550, 52.8210]],
+        "buffer_m": 1400,
         "metric": "4-MNO Blackout | High Moorland Defile | W_signal +2.5",
         "action": "Zero cellular coverage along B4391 pass. Maintain BLE stand-off mesh with convoy.",
     },
     {
         "id": "SIG_DEAD_ELAN_CAMBRIAN",
         "name": "Elan Valley & Elenydd Wilderness Dead Zone",
-        "line": [[-3.7450, 52.3450], [-3.6450, 52.2850], [-3.5750, 52.2350]],
-        "buffer_m": 2200,
+        "line": [[-3.7550, 52.3520], [-3.7020, 52.3180], [-3.6480, 52.2820], [-3.6040, 52.2540], [-3.5680, 52.2280]],
+        "buffer_m": 1900,
         "metric": "4-MNO Blackout | Cambrian Plateau | W_signal +2.5",
         "action": "Largest continuous cellular shadow in Mid Wales. Rely on offline .pmtiles & VHF simplex.",
     },
     {
         "id": "SIG_DEAD_BLACK_MOUNTAIN",
         "name": "Western Bannau Brycheiniog / Black Mountain Shadow",
-        "line": [[-3.8450, 51.8650], [-3.7850, 51.8250], [-3.7150, 51.7950]],
-        "buffer_m": 1500,
+        "line": [[-3.8540, 51.8720], [-3.8160, 51.8440], [-3.7780, 51.8210], [-3.7420, 51.8040], [-3.7080, 51.7910]],
+        "buffer_m": 1350,
         "metric": "4-MNO Blackout | A4069 & Usk Headwaters | W_signal +2.5",
         "action": "Steep escarpment blocks South Wales masts. Gain northern ridge crest for line-of-sight.",
     },
@@ -208,115 +195,165 @@ VERIFIED_RF_TRANSMITTERS: List[Dict[str, Any]] = [
     },
 ]
 
-# UKHSA / BGS Indicative Radon Potential Zones (>10% to >30% exceeding 200 Bq/m3 Action Level)
+# Organic Multi-Vertex UKHSA / BGS Radon Gas Action Belts (Zero Rectangles)
 VERIFIED_RADON_ZONES: List[Dict[str, Any]] = [
     {
         "id": "RADON_HALKYN_CLWYD",
         "name": "UKHSA Radon Action Zone: Halkyn Mountain & Clwydian Limestone",
-        "poly": [[-3.32, 53.26], [-3.14, 53.24], [-3.11, 53.14], [-3.28, 53.15], [-3.32, 53.26]],
+        "poly": [
+            [-3.335, 53.268], [-3.265, 53.275], [-3.195, 53.258], [-3.135, 53.225],
+            [-3.112, 53.175], [-3.148, 53.135], [-3.215, 53.142], [-3.268, 53.168],
+            [-3.308, 53.212], [-3.335, 53.268],
+        ],
         "metric": "UKHSA Class: >30% Exceedance (>200 Bq/m3 Action Level)",
         "action": "Carboniferous limestone karst releases elevated radon gas. Ventilate basements, caves, or subterranean shelters.",
     },
     {
         "id": "RADON_GWYNEDD_SLATE",
         "name": "UKHSA Radon Action Zone: Gwynedd Granite & Slate Belt",
-        "poly": [[-4.22, 53.18], [-3.98, 53.16], [-3.96, 53.04], [-4.18, 53.05], [-4.22, 53.18]],
+        "poly": [
+            [-4.215, 53.178], [-4.125, 53.192], [-4.035, 53.165], [-3.975, 53.115],
+            [-3.962, 53.055], [-4.028, 53.035], [-4.115, 53.048], [-4.178, 53.082],
+            [-4.212, 53.132], [-4.215, 53.178],
+        ],
         "metric": "UKHSA Class: 10–30% Exceedance (>200 Bq/m3 Action Level)",
         "action": "Fractured metamorphic slate & granite bedrock. Avoid prolonged occupancy in unventilated mine adits or cellars.",
     },
     {
         "id": "RADON_PEMBROKE_GOWER",
         "name": "UKHSA Radon Action Zone: South Pembrokeshire & Gower Limestone",
-        "poly": [[-5.05, 51.72], [-4.68, 51.70], [-4.65, 51.61], [-5.02, 51.62], [-5.05, 51.72]],
+        "poly": [
+            [-5.045, 51.712], [-4.935, 51.725], [-4.815, 51.708], [-4.695, 51.685],
+            [-4.662, 51.635], [-4.745, 51.612], [-4.865, 51.608], [-4.975, 51.628],
+            [-5.035, 51.668], [-5.045, 51.712],
+        ],
         "metric": "UKHSA Class: 10–30% Exceedance (>200 Bq/m3 Action Level)",
         "action": "Coastal limestone fault zone. Ensure active cross-ventilation in ground-level or below-grade shelters.",
     },
     {
         "id": "RADON_VALLEYS_TAFF",
         "name": "UKHSA Radon Action Zone: South Wales Coalfield & Taff Gorge",
-        "poly": [[-3.52, 51.74], [-3.22, 51.72], [-3.20, 51.58], [-3.49, 51.60], [-3.52, 51.74]],
+        "poly": [
+            [-3.515, 51.735], [-3.415, 51.748], [-3.305, 51.732], [-3.218, 51.695],
+            [-3.205, 51.625], [-3.258, 51.582], [-3.355, 51.578], [-3.445, 51.608],
+            [-3.498, 51.668], [-3.515, 51.735],
+        ],
         "metric": "UKHSA Class: 10–30% Exceedance (>200 Bq/m3 Action Level)",
         "action": "Deep-mined strata & valley fault lines concentrate soil gas in enclosed lower storeys.",
     },
 ]
 
-# Verified Statutory SSSIs (Wildlife & Countryside Act 1981 — STRICT NO-FORAGING ZONES)
+# Organic Multi-Vertex Statutory SSSIs (Wildlife & Countryside Act 1981 — STRICT NO-FORAGING ZONES)
 VERIFIED_SSSI_ZONES: List[Dict[str, Any]] = [
     {
         "id": "SSSI_ERYRI_CORE",
         "name": "SSSI: Eryri / Yr Wyddfa & Cwm Idwal National Nature Reserve",
-        "poly": [[-4.11, 53.13], [-3.99, 53.13], [-3.98, 53.05], [-4.10, 53.05], [-4.11, 53.13]],
+        "poly": [
+            [-4.105, 53.128], [-4.045, 53.142], [-3.992, 53.124], [-3.978, 53.082],
+            [-4.005, 53.048], [-4.058, 53.044], [-4.095, 53.068], [-4.112, 53.098],
+            [-4.105, 53.128],
+        ],
         "metric": "Statutory SSSI | Wildlife & Countryside Act 1981",
         "action": "FORAGING PROHIBITED: High-Conservation SSSI Zone. No harvesting, uprooting, or disturbance permitted.",
     },
     {
         "id": "SSSI_CORS_CARON",
         "name": "SSSI: Cors Caron Raised Bog National Nature Reserve (Tregaron)",
-        "poly": [[-3.95, 52.27], [-3.89, 52.27], [-3.89, 52.22], [-3.95, 52.22], [-3.95, 52.27]],
+        "poly": [
+            [-3.948, 52.266], [-3.918, 52.275], [-3.892, 52.262], [-3.888, 52.238],
+            [-3.908, 52.218], [-3.938, 52.222], [-3.954, 52.242], [-3.948, 52.266],
+        ],
         "metric": "Statutory SSSI & Ramsar Wetland | WCA 1981",
         "action": "FORAGING PROHIBITED: Protected peatland habitat. Keep strictly to designated raised boardwalks.",
     },
     {
         "id": "SSSI_GOWER_COAST",
         "name": "SSSI: Gower Coast (Rhossili to Port Eynon)",
-        "poly": [[-4.32, 51.58], [-4.20, 51.57], [-4.20, 51.53], [-4.32, 51.54], [-4.32, 51.58]],
+        "poly": [
+            [-4.324, 51.578], [-4.278, 51.582], [-4.225, 51.568], [-4.198, 51.548],
+            [-4.218, 51.532], [-4.268, 51.535], [-4.308, 51.548], [-4.328, 51.564],
+            [-4.324, 51.578],
+        ],
         "metric": "Statutory Coastal SSSI | Wildlife & Countryside Act 1981",
         "action": "FORAGING PROHIBITED: Protected maritime cliff flora and seabird nesting habitat.",
     },
 ]
 
-# Legal Ancient Woodland Foraging Biomes (Theft Act 1968 Four Fs; wild fungi strictly excluded)
+# Organic Multi-Vertex Ancient Woodland Foraging Biomes (Theft Act 1968 Four Fs; wild fungi excluded)
 VERIFIED_FORAGING_BIOMES: List[Dict[str, Any]] = [
     {
         "id": "FORAGE_COED_Y_BRENIN",
         "name": "Ancient Woodland Biome: Coed y Brenin & Ganllwyd Oakwoods",
-        "poly": [[-3.92, 52.84], [-3.84, 52.84], [-3.84, 52.78], [-3.92, 52.78], [-3.92, 52.84]],
+        "poly": [
+            [-3.918, 52.838], [-3.878, 52.846], [-3.842, 52.832], [-3.836, 52.798],
+            [-3.862, 52.776], [-3.898, 52.782], [-3.922, 52.808], [-3.918, 52.838],
+        ],
         "metric": "NRW Ancient Semi-Natural Woodland | Theft Act 1968 Compliant",
         "action": "Legal personal-use above-ground flora only (wild garlic, nettles, bilberries, hazelnuts). No uprooting. DO NOT harvest wild fungi/mushrooms.",
     },
     {
         "id": "FORAGE_GWYDYR_CONWY",
         "name": "Ancient Woodland Biome: Gwydyr Forest & Betws-y-Coed Valley",
-        "poly": [[-3.86, 53.12], [-3.78, 53.12], [-3.78, 53.07], [-3.86, 53.07], [-3.86, 53.12]],
+        "poly": [
+            [-3.858, 53.118], [-3.818, 53.126], [-3.782, 53.112], [-3.776, 53.082],
+            [-3.802, 53.066], [-3.838, 53.072], [-3.862, 53.095], [-3.858, 53.118],
+        ],
         "metric": "Mixed Broadleaf/Conifer Canopy | Thermal Shelter & Flora",
         "action": "Dense canopy windbreak & fallen deadwood fuel. Personal above-ground foliage/berries only; strictly exclude wild mushrooms.",
     },
     {
         "id": "FORAGE_ELAN_OAKWOODS",
         "name": "Ancient Woodland Biome: Lower Elan & Wye Valley Broadleaf",
-        "poly": [[-3.58, 52.29], [-3.49, 52.29], [-3.49, 52.23], [-3.58, 52.23], [-3.58, 52.29]],
+        "poly": [
+            [-3.578, 52.288], [-3.535, 52.296], [-3.492, 52.282], [-3.486, 52.248],
+            [-3.515, 52.226], [-3.555, 52.232], [-3.582, 52.258], [-3.578, 52.288],
+        ],
         "metric": "Sessile Oak & Hazel Coppice | Theft Act 1968 Compliant",
         "action": "High seasonal mast (hazelnuts, blackberries, sorrel). Above-ground personal harvest only; zero wild fungi.",
     },
     {
         "id": "FORAGE_WENTWOOD",
         "name": "Ancient Woodland Biome: Wentwood & Wye Gorge Broadleaf",
-        "poly": [[-2.84, 51.66], [-2.70, 51.66], [-2.70, 51.60], [-2.84, 51.60], [-2.84, 51.66]],
+        "poly": [
+            [-2.838, 51.656], [-2.775, 51.668], [-2.705, 51.652], [-2.696, 51.618],
+            [-2.735, 51.596], [-2.795, 51.602], [-2.842, 51.628], [-2.838, 51.656],
+        ],
         "metric": "Largest Ancient Woodland in South Wales | Broadleaf Canopy",
         "action": "Rich spring wild garlic, elderflower/elderberry, and hazel. Above-ground personal use only; exclude wild fungi.",
     },
 ]
 
-# Designated Open Access Land (CRoW Act 2000 — Legal Off-Trail Movement & Emergency Bivouac)
+# Organic Multi-Vertex Designated Open Access Land (CRoW Act 2000)
 VERIFIED_CROW_ACCESS_LAND: List[Dict[str, Any]] = [
     {
         "id": "CROW_CARNEDDAU_GLYDERAU",
         "name": "CRoW Open Access Land: Carneddau & Glyderau Massif",
-        "poly": [[-4.06, 53.21], [-3.86, 53.20], [-3.87, 53.11], [-4.05, 53.12], [-4.06, 53.21]],
+        "poly": [
+            [-4.055, 53.205], [-3.965, 53.218], [-3.872, 53.195], [-3.862, 53.145],
+            [-3.895, 53.108], [-3.975, 53.112], [-4.038, 53.135], [-4.062, 53.172],
+            [-4.055, 53.205],
+        ],
         "metric": "CRoW Act 2000 Statutory Access | Mountain & Moorland",
         "action": "Legal right of foot access across uncultivated upland terrain for high-contour ridge bypasses.",
     },
     {
         "id": "CROW_BANNAU_CENTRAL",
         "name": "CRoW Open Access Land: Central Bannau Brycheiniog (Pen y Fan)",
-        "poly": [[-3.54, 51.92], [-3.34, 51.91], [-3.35, 51.83], [-3.53, 51.84], [-3.54, 51.92]],
+        "poly": [
+            [-3.538, 51.912], [-3.445, 51.924], [-3.348, 51.905], [-3.338, 51.858],
+            [-3.385, 51.828], [-3.465, 51.832], [-3.525, 51.855], [-3.545, 51.885],
+            [-3.538, 51.912],
+        ],
         "metric": "CRoW Act 2000 Statutory Access | Old Red Sandstone Escarpment",
         "action": "Legal off-trail upland movement zone above valley flood corridors.",
     },
     {
         "id": "CROW_PRESELI_HILLS",
         "name": "CRoW Open Access Land: Mynydd Preseli Ridge (Pembrokeshire)",
-        "poly": [[-4.86, 51.98], [-4.68, 51.97], [-4.69, 51.92], [-4.85, 51.93], [-4.86, 51.98]],
+        "poly": [
+            [-4.858, 51.972], [-4.775, 51.984], [-4.685, 51.968], [-4.678, 51.935],
+            [-4.725, 51.918], [-4.805, 51.922], [-4.855, 51.942], [-4.858, 51.972],
+        ],
         "metric": "CRoW Act 2000 Statutory Access | West Wales Upland Corridor",
         "action": "Open moorland ridge corridor with long-range VHF line-of-sight.",
     },
@@ -794,55 +831,74 @@ def round_coordinates(coords: Any, precision: int = 5) -> Any:
     return coords
 
 
-def make_feathered_metric_polygons(
+def make_three_ring_cloud_polygons(
     geom_wgs84: Any,
     core_buffer_m: float,
+    mid_extra_m: float,
     halo_extra_m: float,
     base_props: Dict[str, Any],
+    morph_smooth_m: float = 0.0,
 ) -> List[Dict[str, Any]]:
-    """Create concentric core and dispersion halo polygons in British National Grid (EPSG:27700)."""
+    """
+    Generate 3 concentric, rounded geographic shells in British National Grid (EPSG:27700):
+      1. `core` (exact physical boundary)
+      2. `mid`  (soft intermediate plume)
+      3. `halo` (outer vaporous fade)
+    Morphological rounding (`morph_smooth_m > 0`) eliminates any sharp polygon corners
+    so every zone renders as an organic, amorphous cloud locked to true ground scale.
+    """
     gdf = gpd.GeoDataFrame([{"geometry": geom_wgs84}], crs="EPSG:4326").to_crs(epsg=27700)
     raw_bng = gdf.geometry.iloc[0]
 
-    core_geom = raw_bng.buffer(core_buffer_m, cap_style="round").simplify(
-        tolerance=10.0, preserve_topology=True
-    )
-    halo_geom = raw_bng.buffer(core_buffer_m + halo_extra_m, cap_style="round").simplify(
-        tolerance=14.0, preserve_topology=True
-    )
-
-    core_wgs = gpd.GeoSeries([core_geom], crs="EPSG:27700").to_crs(epsg=4326).iloc[0]
-    halo_wgs = gpd.GeoSeries([halo_geom], crs="EPSG:27700").to_crs(epsg=4326).iloc[0]
-
-    wales_clip = box(*WALES_BBOX)
-    core_wgs = core_wgs.intersection(wales_clip)
-    halo_wgs = halo_wgs.intersection(wales_clip)
-
-    out: List[Dict[str, Any]] = []
-    if not halo_wgs.is_empty:
-        halo_dict = mapping(halo_wgs)
-        halo_dict["coordinates"] = round_coordinates(halo_dict["coordinates"], 5)
-        halo_props = dict(base_props)
-        halo_props["id"] = f"{base_props['id']}_HALO"
-        halo_props["cloudRing"] = "halo"
-        out.append(
-            {
-                "type": "Feature",
-                "geometry": halo_dict,
-                "properties": halo_props,
-            }
+    if morph_smooth_m > 0:
+        # Round-cap morphological closing & opening eliminates sharp angles organically
+        raw_bng = raw_bng.buffer(morph_smooth_m, cap_style="round", join_style="round").buffer(
+            -morph_smooth_m * 0.85, cap_style="round", join_style="round"
         )
 
-    if not core_wgs.is_empty:
-        core_dict = mapping(core_wgs)
-        core_dict["coordinates"] = round_coordinates(core_dict["coordinates"], 5)
-        core_props = dict(base_props)
-        core_props["cloudRing"] = "core"
+    core_geom = (
+        raw_bng.buffer(core_buffer_m, cap_style="round", join_style="round")
+        if core_buffer_m != 0
+        else raw_bng
+    ).simplify(tolerance=14.0, preserve_topology=True)
+
+    mid_geom = raw_bng.buffer(
+        core_buffer_m + mid_extra_m, cap_style="round", join_style="round"
+    ).simplify(tolerance=18.0, preserve_topology=True)
+
+    halo_geom = raw_bng.buffer(
+        core_buffer_m + halo_extra_m, cap_style="round", join_style="round"
+    ).simplify(tolerance=22.0, preserve_topology=True)
+
+    wales_clip = box(*WALES_BBOX)
+    rings = [
+        ("halo", f"{base_props['id']}_HALO", halo_geom),
+        ("mid", f"{base_props['id']}_MID", mid_geom),
+        ("core", base_props["id"], core_geom),
+    ]
+
+    out: List[Dict[str, Any]] = []
+    for ring_name, fid, bng_geom in rings:
+        if bng_geom.is_empty:
+            continue
+        wgs_geom = (
+            gpd.GeoSeries([bng_geom], crs="EPSG:27700")
+            .to_crs(epsg=4326)
+            .iloc[0]
+            .intersection(wales_clip)
+        )
+        if wgs_geom.is_empty:
+            continue
+        g_dict = mapping(wgs_geom)
+        g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 4)
+        props = dict(base_props)
+        props["id"] = fid
+        props["cloudRing"] = ring_name
         out.append(
             {
                 "type": "Feature",
-                "geometry": core_dict,
-                "properties": core_props,
+                "geometry": g_dict,
+                "properties": props,
             }
         )
     return out
@@ -939,7 +995,7 @@ def query_overpass_fast(
     query: str, label: str, mirror_offset: int = 0
 ) -> Optional[Dict[str, Any]]:
     """Execute an Overpass query with round-robin mirror rotation and rate-limit backoff."""
-    headers = {"User-Agent": "DatumZero-ETL/4.0 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/4.1 (Civil Resilience Pipeline)"}
     n = len(OVERPASS_MIRRORS)
     ordered_mirrors = [OVERPASS_MIRRORS[(mirror_offset + i) % n] for i in range(n)]
 
@@ -1012,11 +1068,11 @@ def restore_cached_points_in_bbox(bbox: List[float]) -> List[Dict[str, Any]]:
 def generate_emf_corridor_polygons(
     power_lines: List[Tuple[LineString, int, str]]
 ) -> List[Dict[str, Any]]:
-    """Buffer high-voltage lines in British National Grid (EPSG:27700) with true metric halo."""
+    """Buffer high-voltage lines in British National Grid (EPSG:27700) with 3-ring feathered edges."""
     if not power_lines:
         return []
 
-    logging.info("Computing fixed-scale 50Hz EMF buffers for %d segments...", len(power_lines))
+    logging.info("Computing 3-ring feathered 50Hz EMF corridors for %d segments...", len(power_lines))
     records = [
         {"geometry": geom, "buffer_m": buf, "tier": tier}
         for geom, buf, tier in power_lines
@@ -1027,8 +1083,12 @@ def generate_emf_corridor_polygons(
         lambda row: row.geometry.buffer(row["buffer_m"], cap_style="round"),
         axis=1,
     )
+    gdf["mid_geom"] = gdf.apply(
+        lambda row: row.geometry.buffer(row["buffer_m"] * 1.30, cap_style="round"),
+        axis=1,
+    )
     gdf["halo_geom"] = gdf.apply(
-        lambda row: row.geometry.buffer(row["buffer_m"] * 1.45, cap_style="round"),
+        lambda row: row.geometry.buffer(row["buffer_m"] * 1.65, cap_style="round"),
         axis=1,
     )
 
@@ -1037,68 +1097,44 @@ def generate_emf_corridor_polygons(
 
     for tier, group in gdf.groupby("tier"):
         buf_m = int(group["buffer_m"].iloc[0])
-        core_series = gpd.GeoSeries(group["core_geom"], crs="EPSG:27700")
-        halo_series = gpd.GeoSeries(group["halo_geom"], crs="EPSG:27700")
+        for ring_name, col_name, id_suffix, simp_tol in [
+            ("halo", "halo_geom", "_HALO", 18.0),
+            ("mid", "mid_geom", "_MID", 15.0),
+            ("core", "core_geom", "", 12.0),
+        ]:
+            series = gpd.GeoSeries(group[col_name], crs="EPSG:27700")
+            unioned = (
+                series.union_all()
+                if hasattr(series, "union_all")
+                else series.unary_union
+            ).simplify(simp_tol, preserve_topology=True)
 
-        core_union = (
-            core_series.union_all()
-            if hasattr(core_series, "union_all")
-            else core_series.unary_union
-        ).simplify(12.0, preserve_topology=True)
-        halo_union = (
-            halo_series.union_all()
-            if hasattr(halo_series, "union_all")
-            else halo_series.unary_union
-        ).simplify(16.0, preserve_topology=True)
-
-        core_wgs = (
-            gpd.GeoSeries([core_union], crs="EPSG:27700")
-            .to_crs(epsg=4326)
-            .iloc[0]
-            .intersection(wales_clip)
-        )
-        halo_wgs = (
-            gpd.GeoSeries([halo_union], crs="EPSG:27700")
-            .to_crs(epsg=4326)
-            .iloc[0]
-            .intersection(wales_clip)
-        )
-
-        base_props: Dict[str, Any] = {
-            "id": f"EMF_CORRIDOR_{buf_m}M",
-            "name": f"{tier} 50Hz EMF Corridor",
-            "category": "grid_down",
-            "categoryLabel": "HIGH-VOLTAGE EMF BUFFER",
-            "accentColor": "#FFB800",
-            "threatWeight": 2.0,
-            "primaryMetric": f"True Ground Buffer: {buf_m}m | Compass & RF Interference",
-            "operationalAction": "Expect magnetometer deviation and storm line-drop hazard. Maintain clearance.",
-        }
-
-        if not halo_wgs.is_empty:
-            h_dict = mapping(halo_wgs)
-            h_dict["coordinates"] = round_coordinates(h_dict["coordinates"], 5)
-            h_props = dict(base_props)
-            h_props["id"] = f"{base_props['id']}_HALO"
-            h_props["cloudRing"] = "halo"
-            features.append(
-                {
-                    "type": "Feature",
-                    "geometry": h_dict,
-                    "properties": h_props,
-                }
+            wgs_geom = (
+                gpd.GeoSeries([unioned], crs="EPSG:27700")
+                .to_crs(epsg=4326)
+                .iloc[0]
+                .intersection(wales_clip)
             )
+            if wgs_geom.is_empty:
+                continue
 
-        if not core_wgs.is_empty:
-            c_dict = mapping(core_wgs)
-            c_dict["coordinates"] = round_coordinates(c_dict["coordinates"], 5)
-            c_props = dict(base_props)
-            c_props["cloudRing"] = "core"
+            g_dict = mapping(wgs_geom)
+            g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 5)
             features.append(
                 {
                     "type": "Feature",
-                    "geometry": c_dict,
-                    "properties": c_props,
+                    "geometry": g_dict,
+                    "properties": {
+                        "id": f"EMF_CORRIDOR_{buf_m}M{id_suffix}",
+                        "name": f"{tier} 50Hz EMF Corridor",
+                        "category": "grid_down",
+                        "categoryLabel": "HIGH-VOLTAGE EMF BUFFER",
+                        "accentColor": "#FFB800",
+                        "threatWeight": 2.0,
+                        "cloudRing": ring_name,
+                        "primaryMetric": f"True Ground Buffer: {buf_m}m | Compass & RF Interference",
+                        "operationalAction": "Expect magnetometer deviation and storm line-drop hazard. Maintain clearance.",
+                    },
                 }
             )
     return features
@@ -1107,29 +1143,26 @@ def generate_emf_corridor_polygons(
 def generate_bridge_choke_polygons(
     bridge_lines: List[Tuple[LineString, str]]
 ) -> List[Dict[str, Any]]:
-    """Generate 160m fixed-scale metric choke-point buffers around trunk/primary bridges."""
+    """Generate 3-ring feathered 160m metric choke-point clouds around trunk/primary bridges."""
     if not bridge_lines:
         return []
 
-    logging.info("Generating fixed-scale choke-point polygons for %d major bridges...", len(bridge_lines))
+    logging.info("Generating 3-ring feathered choke clouds for %d major bridges...", len(bridge_lines))
     records = [{"geometry": geom, "name": name} for geom, name in bridge_lines]
     gdf = gpd.GeoDataFrame(records, crs="EPSG:4326").to_crs(epsg=27700)
 
     gdf["geometry"] = gdf.geometry.buffer(160.0, cap_style="round")
     dissolved = gdf.dissolve().explode(index_parts=False).reset_index(drop=True)
-    dissolved["halo_geom"] = dissolved.geometry.buffer(80.0, cap_style="round")
+    dissolved["mid_geom"] = dissolved.geometry.buffer(55.0, cap_style="round")
+    dissolved["halo_geom"] = dissolved.geometry.buffer(115.0, cap_style="round")
 
     core_wgs = dissolved.to_crs(epsg=4326)
+    mid_wgs = gpd.GeoSeries(dissolved["mid_geom"], crs="EPSG:27700").to_crs(epsg=4326)
     halo_wgs = gpd.GeoSeries(dissolved["halo_geom"], crs="EPSG:27700").to_crs(epsg=4326)
     wales_clip = box(*WALES_BBOX)
 
     features: List[Dict[str, Any]] = []
     for idx in range(len(core_wgs)):
-        c_geom = core_wgs.geometry.iloc[idx].intersection(wales_clip)
-        h_geom = halo_wgs.iloc[idx].intersection(wales_clip)
-        if c_geom.is_empty:
-            continue
-
         base_props: Dict[str, Any] = {
             "id": f"HAZ_CHOKE_BRIDGE_{idx}",
             "name": "Strategic Trunk Bridge Choke Point",
@@ -1141,31 +1174,25 @@ def generate_bridge_choke_polygons(
             "operationalAction": "Primary river/valley crossing bottleneck. Vulnerable to flood debris, closure, or gridlock.",
         }
 
-        if not h_geom.is_empty:
-            h_dict = mapping(h_geom)
-            h_dict["coordinates"] = round_coordinates(h_dict["coordinates"], 5)
-            h_props = dict(base_props)
-            h_props["id"] = f"{base_props['id']}_HALO"
-            h_props["cloudRing"] = "halo"
+        for ring_name, geom_obj, id_suffix in [
+            ("halo", halo_wgs.iloc[idx].intersection(wales_clip), "_HALO"),
+            ("mid", mid_wgs.iloc[idx].intersection(wales_clip), "_MID"),
+            ("core", core_wgs.geometry.iloc[idx].intersection(wales_clip), ""),
+        ]:
+            if geom_obj.is_empty:
+                continue
+            g_dict = mapping(geom_obj)
+            g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 5)
+            props = dict(base_props)
+            props["id"] = f"{base_props['id']}{id_suffix}"
+            props["cloudRing"] = ring_name
             features.append(
                 {
                     "type": "Feature",
-                    "geometry": h_dict,
-                    "properties": h_props,
+                    "geometry": g_dict,
+                    "properties": props,
                 }
             )
-
-        c_dict = mapping(c_geom)
-        c_dict["coordinates"] = round_coordinates(c_dict["coordinates"], 5)
-        c_props = dict(base_props)
-        c_props["cloudRing"] = "core"
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": c_dict,
-                "properties": c_props,
-            }
-        )
     return features
 
 
@@ -1191,7 +1218,7 @@ def harvest_datamapwales_wfs_layer(
         "srsName": "EPSG:4326",
         "count": str(max_count),
     }
-    headers = {"User-Agent": "DatumZero-ETL/4.0 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/4.1 (Civil Resilience Pipeline)"}
     features: List[Dict[str, Any]] = []
 
     try:
@@ -1215,24 +1242,25 @@ def harvest_datamapwales_wfs_layer(
                     or props.get("name")
                     or name_default
                 )
-                g_dict = mapping(shp)
-                g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 4)
-                features.append(
-                    {
-                        "type": "Feature",
-                        "geometry": g_dict,
-                        "properties": {
-                            "id": f"{id_prefix}_{idx}",
-                            "name": str(raw_name),
-                            "category": category,
-                            "categoryLabel": category_label,
-                            "accentColor": accent_color,
-                            "threatWeight": threat_weight,
-                            "cloudRing": "core",
-                            "primaryMetric": metric_text,
-                            "operationalAction": action_text,
-                        },
-                    }
+                base_props = {
+                    "id": f"{id_prefix}_{idx}",
+                    "name": str(raw_name),
+                    "category": category,
+                    "categoryLabel": category_label,
+                    "accentColor": accent_color,
+                    "threatWeight": threat_weight,
+                    "primaryMetric": metric_text,
+                    "operationalAction": action_text,
+                }
+                features.extend(
+                    make_three_ring_cloud_polygons(
+                        shp,
+                        core_buffer_m=0.0,
+                        mid_extra_m=120.0,
+                        halo_extra_m=260.0,
+                        base_props=base_props,
+                        morph_smooth_m=80.0,
+                    )
                 )
         else:
             logging.info("DataMapWales WFS %s returned HTTP %s (using built-in baseline).", type_name, res.status_code)
@@ -1243,12 +1271,9 @@ def harvest_datamapwales_wfs_layer(
 
 
 def harvest_defra_aurn_telemetry() -> List[Dict[str, Any]]:
-    """
-    Poll DEFRA UK-AIR SOS API for live Welsh particulate station status,
-    enriching the verified AURN station baselines with live telemetry tags.
-    """
+    """Poll DEFRA UK-AIR SOS API for live Welsh particulate station status."""
     live_labels: Dict[str, str] = {}
-    headers = {"User-Agent": "DatumZero-ETL/4.0 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/4.1 (Civil Resilience Pipeline)"}
     try:
         res = requests.get(DEFRA_UKAIR_STATIONS_URL, headers=headers, timeout=15)
         if res.status_code == 200:
@@ -1292,17 +1317,15 @@ def harvest_defra_aurn_telemetry() -> List[Dict[str, Any]]:
 
 def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
     """
-    Compile Priority 1 & 2 Geospatial Intelligence:
-    - Cellular Dead Zones (W_signal = 2.5) & RF Transmitter Footprints (grid_down)
-    - UKHSA / BGS Radon Gas Action Zones (hazards)
-    - SSSIs (No-Foraging WCA 1981) & Ancient Woodland Foraging Biomes (resupply)
-    - Designated Open Access Land (CRoW Act 2000 — baseline)
+    Compile Priority 1 & 2 Geospatial Intelligence as organic, non-rectangular,
+    3-ring feathered clouds locked to British National Grid meters (EPSG:27700).
     """
     features: List[Dict[str, Any]] = []
 
-    # 1. Topological Cellular Dead Zones (W_signal = 2.5 for Evacuation Routing)
+    # 1. Topological Cellular Dead Zones (W_signal = 2.5 winding valley clouds)
     for dz in VERIFIED_CELLULAR_DEAD_ZONES:
         line = LineString(dz["line"])
+        buf = float(dz["buffer_m"])
         base_props = {
             "id": dz["id"],
             "name": dz["name"],
@@ -1314,10 +1337,11 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             "operationalAction": dz["action"],
         }
         features.extend(
-            make_feathered_metric_polygons(
+            make_three_ring_cloud_polygons(
                 line,
-                core_buffer_m=float(dz["buffer_m"]),
-                halo_extra_m=float(dz["buffer_m"]) * 0.35,
+                core_buffer_m=buf,
+                mid_extra_m=buf * 0.25,
+                halo_extra_m=buf * 0.55,
                 base_props=base_props,
             )
         )
@@ -1325,6 +1349,7 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
     # 2. High-Power Broadcast & RF Transmitter Footprints
     for tx in VERIFIED_RF_TRANSMITTERS:
         pt = Point(tx["coords"][0], tx["coords"][1])
+        rad = float(tx["radius_m"])
         base_props = {
             "id": tx["id"],
             "name": tx["name"],
@@ -1336,104 +1361,109 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             "operationalAction": tx["action"],
         }
         features.extend(
-            make_feathered_metric_polygons(
+            make_three_ring_cloud_polygons(
                 pt,
-                core_buffer_m=float(tx["radius_m"]),
-                halo_extra_m=float(tx["radius_m"]) * 0.4,
+                core_buffer_m=rad,
+                mid_extra_m=rad * 0.28,
+                halo_extra_m=rad * 0.60,
                 base_props=base_props,
             )
         )
 
-    # 3. UKHSA / BGS Radon Gas Action Zones (>200 Bq/m3 exceedance)
+    # 3. UKHSA / BGS Radon Gas Action Zones (Organic smoothed geological belts)
     for rz in VERIFIED_RADON_ZONES:
         poly = Polygon(rz["poly"])
-        g_dict = mapping(poly)
-        g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 4)
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": g_dict,
-                "properties": {
-                    "id": rz["id"],
-                    "name": rz["name"],
-                    "category": "hazards",
-                    "categoryLabel": "RADON GAS ACTION ZONE",
-                    "accentColor": "#FF3B30",
-                    "threatWeight": 1.0,
-                    "cloudRing": "core",
-                    "primaryMetric": rz["metric"],
-                    "operationalAction": rz["action"],
-                },
-            }
+        base_props = {
+            "id": rz["id"],
+            "name": rz["name"],
+            "category": "hazards",
+            "categoryLabel": "RADON GAS ACTION ZONE",
+            "accentColor": "#FF3B30",
+            "threatWeight": 1.0,
+            "primaryMetric": rz["metric"],
+            "operationalAction": rz["action"],
+        }
+        features.extend(
+            make_three_ring_cloud_polygons(
+                poly,
+                core_buffer_m=0.0,
+                mid_extra_m=650.0,
+                halo_extra_m=1450.0,
+                base_props=base_props,
+                morph_smooth_m=1200.0,
+            )
         )
 
-    # 4. Statutory SSSIs (Wildlife & Countryside Act 1981 — STRICT NO-FORAGING ZONES)
+    # 4. Statutory SSSIs (Organic smoothed protected boundaries — STRICT NO FORAGING)
     for sssi in VERIFIED_SSSI_ZONES:
         poly = Polygon(sssi["poly"])
-        g_dict = mapping(poly)
-        g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 4)
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": g_dict,
-                "properties": {
-                    "id": sssi["id"],
-                    "name": sssi["name"],
-                    "category": "resupply",
-                    "categoryLabel": "SSSI PROTECTED ZONE (NO FORAGING)",
-                    "accentColor": "#FF3B30",
-                    "threatWeight": 0.0,
-                    "cloudRing": "core",
-                    "primaryMetric": sssi["metric"],
-                    "operationalAction": sssi["action"],
-                },
-            }
+        base_props = {
+            "id": sssi["id"],
+            "name": sssi["name"],
+            "category": "resupply",
+            "categoryLabel": "SSSI PROTECTED ZONE (NO FORAGING)",
+            "accentColor": "#FF3B30",
+            "threatWeight": 0.0,
+            "primaryMetric": sssi["metric"],
+            "operationalAction": sssi["action"],
+        }
+        features.extend(
+            make_three_ring_cloud_polygons(
+                poly,
+                core_buffer_m=0.0,
+                mid_extra_m=450.0,
+                halo_extra_m=1000.0,
+                base_props=base_props,
+                morph_smooth_m=900.0,
+            )
         )
 
-    # 5. Ancient Woodland Foraging Biomes (Theft Act 1968 Four Fs; wild fungi excluded)
+    # 5. Ancient Woodland Foraging Biomes (Organic smoothed canopy clouds)
     for fb in VERIFIED_FORAGING_BIOMES:
         poly = Polygon(fb["poly"])
-        g_dict = mapping(poly)
-        g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 4)
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": g_dict,
-                "properties": {
-                    "id": fb["id"],
-                    "name": fb["name"],
-                    "category": "resupply",
-                    "categoryLabel": "SUBSISTENCE FORAGING BIOME",
-                    "accentColor": "#00E5FF",
-                    "threatWeight": 0.0,
-                    "cloudRing": "core",
-                    "primaryMetric": fb["metric"],
-                    "operationalAction": fb["action"],
-                },
-            }
+        base_props = {
+            "id": fb["id"],
+            "name": fb["name"],
+            "category": "resupply",
+            "categoryLabel": "SUBSISTENCE FORAGING BIOME",
+            "accentColor": "#00E5FF",
+            "threatWeight": 0.0,
+            "primaryMetric": fb["metric"],
+            "operationalAction": fb["action"],
+        }
+        features.extend(
+            make_three_ring_cloud_polygons(
+                poly,
+                core_buffer_m=0.0,
+                mid_extra_m=450.0,
+                halo_extra_m=1000.0,
+                base_props=base_props,
+                morph_smooth_m=850.0,
+            )
         )
 
-    # 6. Designated Open Access Land (CRoW Act 2000)
+    # 6. Designated Open Access Land (CRoW Act 2000 — Organic upland massifs)
     for crow in VERIFIED_CROW_ACCESS_LAND:
         poly = Polygon(crow["poly"])
-        g_dict = mapping(poly)
-        g_dict["coordinates"] = round_coordinates(g_dict["coordinates"], 4)
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": g_dict,
-                "properties": {
-                    "id": crow["id"],
-                    "name": crow["name"],
-                    "category": "baseline",
-                    "categoryLabel": "CROW OPEN ACCESS LAND",
-                    "accentColor": "#94A3B8",
-                    "threatWeight": 0.0,
-                    "cloudRing": "core",
-                    "primaryMetric": crow["metric"],
-                    "operationalAction": crow["action"],
-                },
-            }
+        base_props = {
+            "id": crow["id"],
+            "name": crow["name"],
+            "category": "baseline",
+            "categoryLabel": "CROW OPEN ACCESS LAND",
+            "accentColor": "#94A3B8",
+            "threatWeight": 0.0,
+            "primaryMetric": crow["metric"],
+            "operationalAction": crow["action"],
+        }
+        features.extend(
+            make_three_ring_cloud_polygons(
+                poly,
+                core_buffer_m=0.0,
+                mid_extra_m=550.0,
+                halo_extra_m=1250.0,
+                base_props=base_props,
+                morph_smooth_m=1100.0,
+            )
         )
 
     return features
@@ -1481,6 +1511,7 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
 
     for site in VERIFIED_COMAH_SITES:
         pt = Point(site["coords"][0], site["coords"][1])
+        rad = float(site["radius_m"])
         base_props = {
             "id": site["id"],
             "name": site["name"],
@@ -1492,16 +1523,18 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
             "operationalAction": site["action"],
         }
         features.extend(
-            make_feathered_metric_polygons(
+            make_three_ring_cloud_polygons(
                 pt,
-                core_buffer_m=float(site["radius_m"]),
-                halo_extra_m=float(site["radius_m"]) * 0.4,
+                core_buffer_m=rad,
+                mid_extra_m=rad * 0.25,
+                halo_extra_m=rad * 0.55,
                 base_props=base_props,
             )
         )
 
     for corr in VERIFIED_FLOOD_CORRIDORS:
         line = LineString(corr["line"])
+        buf = float(corr["buffer_m"])
         base_props = {
             "id": corr["id"],
             "name": corr["name"],
@@ -1513,10 +1546,11 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
             "operationalAction": corr["action"],
         }
         features.extend(
-            make_feathered_metric_polygons(
+            make_three_ring_cloud_polygons(
                 line,
-                core_buffer_m=float(corr["buffer_m"]),
-                halo_extra_m=float(corr["buffer_m"]) * 0.45,
+                core_buffer_m=buf,
+                mid_extra_m=buf * 0.28,
+                halo_extra_m=buf * 0.60,
                 base_props=base_props,
             )
         )
@@ -1686,35 +1720,32 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
 def z_order_sort_key(feature: Dict[str, Any]) -> int:
     """
     Order features so MapLibre renders:
-    0. Outer dispersion halos & broad ecological/access/radon/signal zones at bottom
-    1. Tight acute hazard/EMF core polygons above broad zones
-    2. Baseline CCTV points
-    3. Resupply & Medical points
-    4. Grid Down repeater points
-    5. Acute Red (#FF3B30) hazard/telemetry points ON TOP
+    0. Outer dispersion halos (`halo`)
+    1. Intermediate dispersion plumes (`mid`)
+    2. Core zone boundaries (`core`)
+    3. Baseline CCTV points
+    4. Resupply & Medical points
+    5. Grid Down repeater points
+    6. Acute Red (#FF3B30) hazard/telemetry points ON TOP
     """
     geom_type = feature.get("geometry", {}).get("type", "")
     props = feature.get("properties", {})
     category = props.get("category", "")
-    label = props.get("categoryLabel", "")
     ring = props.get("cloudRing", "")
 
     if geom_type in ("Polygon", "MultiPolygon"):
-        if ring == "halo" or label in (
-            "CROW OPEN ACCESS LAND",
-            "SUBSISTENCE FORAGING BIOME",
-            "RADON GAS ACTION ZONE",
-            "CELLULAR DEAD ZONE",
-        ):
+        if ring == "halo":
             return 0
-        return 1
-    if category == "baseline":
+        if ring == "mid":
+            return 1
         return 2
-    if category in ("resupply", "medical"):
+    if category == "baseline":
         return 3
-    if category == "grid_down":
+    if category in ("resupply", "medical"):
         return 4
-    return 5
+    if category == "grid_down":
+        return 5
+    return 6
 
 
 def main() -> None:
@@ -1724,7 +1755,6 @@ def main() -> None:
     priority_layers = build_priority_1_and_2_layers()
     defra_aurn = harvest_defra_aurn_telemetry()
 
-    # Poll DataMapWales OGC WFS for Flood Zone 3, SSSIs, and Open Access Land
     dmw_flood_zones = harvest_datamapwales_wfs_layer(
         type_name="inspire-nrw:NRW_FLOOD_MAP_FLOOD_ZONE_3_RIVERS_AND_SEA",
         id_prefix="NRW_FZ3",
