@@ -1,10 +1,12 @@
 """
 pipelines/build_wales_resilience_layer.py
 Deterministic zero-token spatial ETL compiling Welsh open data into Datum Zero GeoJSON.
-- Queries Overpass across 6 balanced regional tiles (NW, NE, MW, ME, SW, SE Wales) so
-  dense urban corridors (Cardiff, Swansea, Valleys, Wrexham) never time out.
-- Preserves previously compiled features per-tile if an individual sub-tile times out.
-- Filters river fords strictly to vehicular highway crossings (eliminating farm-track noise).
+- Queries Overpass across 7 balanced regional tiles with mirror rotation so South Wales
+  (Swansea, Cardiff, Valleys, Pembrokeshire) completes without rate-limit cutoffs.
+- Extracts both `node` and `way` vehicular river fords (`out center;`).
+- Expands statutory NRW river gauges, tidal causeway hazards, and road defiles across Wales.
+- Sorts GeoJSON output by Z-order so critical Red (#FF3B30) hazard pins render ON TOP of
+  dense Green/Cyan resource clusters in MapLibre GL.
 """
 
 import json
@@ -29,14 +31,16 @@ WALES_BBOX = [-5.5, 51.3, -2.6, 53.5]
 OUTPUT_FILE = Path("dist/wales_resilience_master.geojson")
 DATAMAPWALES_WFS_URL = "https://datamap.gov.wales/geoserver/ows"
 
-# 6 balanced regional tiles [min_lon, min_lat, max_lon, max_lat] to prevent urban Overpass timeouts
+# 7 balanced regional tiles [min_lon, min_lat, max_lon, max_lat]
+# South Wales (<52.00N) is split into 3 narrow longitudinal sectors to avoid urban timeouts
 WALES_SUBTILES: List[Tuple[str, List[float]]] = [
-    ("North-West Wales (Eryri & Anglesey)", [-5.5, 52.75, -3.6, 53.5]),
-    ("North-East Wales (Clwyd & Dee)", [-3.6, 52.75, -2.8, 53.5]),
-    ("Mid-West Wales (Ceredigion)", [-5.5, 52.00, -3.7, 52.75]),
-    ("Mid-East Wales (Powys)", [-3.7, 52.00, -2.9, 52.75]),
-    ("South-West Wales (Pembroke & Carmarthen)", [-5.5, 51.30, -3.9, 52.00]),
-    ("South-East Wales (Swansea, Valleys & Cardiff)", [-3.9, 51.30, -2.6, 52.00]),
+    ("North-West Wales (Eryri & Anglesey)", [-5.50, 52.75, -3.60, 53.50]),
+    ("North-East Wales (Clwyd & Dee)", [-3.60, 52.75, -2.80, 53.50]),
+    ("Mid-West Wales (Ceredigion)", [-5.50, 52.00, -3.70, 52.75]),
+    ("Mid-East Wales (Powys)", [-3.70, 52.00, -2.90, 52.75]),
+    ("South-West Wales (Pembroke & Carmarthen)", [-5.50, 51.30, -4.15, 52.00]),
+    ("South-Central Wales (Swansea & Neath)", [-4.15, 51.30, -3.45, 52.00]),
+    ("South-East Wales (Cardiff, Newport & Valleys)", [-3.45, 51.30, -2.60, 52.00]),
 ]
 
 OVERPASS_MIRRORS = [
@@ -90,9 +94,16 @@ VERIFIED_WELSH_REPEATERS: List[Dict[str, Any]] = [
         "metric": "TX: 145.650 MHz | RX: 145.050 MHz | CTCSS: 110.9 Hz",
         "action": "2m repeater serving Rhondda, Cynon, and Taff valley corridors.",
     },
+    {
+        "id": "COM_GB3MW",
+        "name": "GB3MW - Aberystwyth / Plynlimon Repeater",
+        "coords": [-3.9825, 52.4142],
+        "metric": "TX: 145.600 MHz | RX: 145.000 MHz | CTCSS: 77.0 Hz",
+        "action": "2m Mid-Wales coastal & Cambrian Mountains repeater (-0.6 MHz offset).",
+    },
 ]
 
-# Statutory BGS / Verified Welsh Resupply Springs & Medical Trauma Assets (Baseline Guarantee)
+# Statutory BGS / Verified Welsh Resupply Springs & Medical Trauma Assets
 VERIFIED_RESUPPLY_AND_MEDICAL: List[Dict[str, Any]] = [
     {
         "id": "RESUPPLY_BGS_LLANBERIS",
@@ -125,6 +136,16 @@ VERIFIED_RESUPPLY_AND_MEDICAL: List[Dict[str, Any]] = [
         "action": "High-elevation spring line. Filter or boil 60s.",
     },
     {
+        "id": "RESUPPLY_BGS_PRESELI",
+        "name": "Ffynnon Taf / Preseli Ridge Spring",
+        "coords": [-4.7420, 51.9585],
+        "category": "resupply",
+        "categoryLabel": "NATURAL SPRING",
+        "accentColor": "#00E5FF",
+        "metric": "Gravity Spring | ~12 L/min | Igneous Outcrop",
+        "action": "Filtered upland discharge. Boil 60s or filter prior to storage.",
+    },
+    {
         "id": "MEDICAL_MIU_DOLGELLAU",
         "name": "Dolgellau & Barmouth Minor Injury Unit",
         "coords": [-3.8845, 52.7428],
@@ -143,6 +164,16 @@ VERIFIED_RESUPPLY_AND_MEDICAL: List[Dict[str, Any]] = [
         "accentColor": "#10B981",
         "metric": "NHS Wales MIU & Emergency Trauma",
         "action": "Mid Wales central trauma & stabilization unit.",
+    },
+    {
+        "id": "MEDICAL_MIU_TENBY",
+        "name": "Tenby Cottage Hospital Walk-In & Trauma",
+        "coords": [-4.7062, 51.6725],
+        "category": "medical",
+        "categoryLabel": "MINOR INJURY TRAUMA UNIT",
+        "accentColor": "#10B981",
+        "metric": "NHS Wales Community Trauma & AED",
+        "action": "South Pembrokeshire urgent care and defibrillation point.",
     },
     {
         "id": "MEDICAL_AED_PENYPASS",
@@ -165,18 +196,18 @@ VERIFIED_RESUPPLY_AND_MEDICAL: List[Dict[str, Any]] = [
         "action": "Public highway monitoring point on Menai Strait crossing.",
     },
     {
-        "id": "BASELINE_TW_CONWY",
-        "name": "Traffic Wales A55 Conwy Tunnel West Portal",
-        "coords": [-3.8365, 53.2855],
+        "id": "BASELINE_TW_SEVERN",
+        "name": "Traffic Wales M4 Prince of Wales Bridge West",
+        "coords": [-2.7085, 51.5772],
         "category": "baseline",
         "categoryLabel": "PUBLIC SURVEILLANCE (CCTV)",
         "accentColor": "#94A3B8",
-        "metric": "Type: Traffic Wales Tunnel Surveillance",
-        "action": "Public highway tunnel portal monitoring installation.",
+        "metric": "Type: Traffic Wales Strategic Crossing Camera",
+        "action": "Monitors primary South Wales M4 arterial river crossing.",
     },
 ]
 
-# Statutory NRW River Telemetry Stations across major Welsh spate basins
+# Statutory NRW River Telemetry Stations across all major Welsh spate basins (North, Mid & South)
 VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
     {
         "id": "NRW_GAUGE_GLASLYN",
@@ -186,11 +217,25 @@ VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
         "action": "Monitors Yr Wyddfa southern runoff. Above 1.65m, A498 Aberglaslyn Pass floods; divert via A4085.",
     },
     {
+        "id": "NRW_GAUGE_OGWEN",
+        "name": "NRW Gauge: Afon Ogwen at Bethesda",
+        "coords": [-4.0615, 53.1802],
+        "metric": "Alert Stage: 1.80m | Severe Flood: 2.40m | Basin: Ogwen",
+        "action": "Steep Glyderau/Carneddau catchment; rapid spate surge threatens A5 valley bridge.",
+    },
+    {
         "id": "NRW_GAUGE_CONWY",
         "name": "NRW Gauge: River Conwy at Llanrwst (Pont Fawr)",
         "coords": [-3.7960, 53.1385],
         "metric": "Alert Stage: 2.40m | Bridge Overtop: 3.10m | Basin: Conwy",
         "action": "Fast-responding Carneddau spate river. Pont Fawr closes early; use eastern A470 high corridor.",
+    },
+    {
+        "id": "NRW_GAUGE_CLWYD",
+        "name": "NRW Gauge: River Clwyd at St Asaph",
+        "coords": [-3.4435, 53.2578],
+        "metric": "Alert Stage: 2.20m | Severe Flood: 2.95m | Basin: Clwyd",
+        "action": "Flash-flood constriction at Spring Gardens bridge; impacts A525 and A55 slip approaches.",
     },
     {
         "id": "NRW_GAUGE_DEE",
@@ -200,11 +245,32 @@ VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
         "action": "Controls Dee valley inundation downstream toward Corwen and Llangollen.",
     },
     {
+        "id": "NRW_GAUGE_MAWDDACH",
+        "name": "NRW Gauge: Afon Mawddach at Ganllwyd",
+        "coords": [-3.8892, 52.8015],
+        "metric": "Alert Stage: 1.90m | A470 Encroachment: 2.45m | Basin: Mawddach",
+        "action": "Drains Rhinogydd & Coed y Brenin; A470 valley gorge floods during prolonged orographic rain.",
+    },
+    {
         "id": "NRW_GAUGE_DYFI",
         "name": "NRW Gauge: Afon Dyfi at Machynlleth Bridge",
         "coords": [-3.8548, 52.5964],
         "metric": "Alert Stage: 2.80m | A487 Cut-Off: 3.40m | Basin: Dyfi",
         "action": "Single-corridor A487 north-south artery severs when tidal surge meets spate discharge.",
+    },
+    {
+        "id": "NRW_GAUGE_YSTWYTH",
+        "name": "NRW Gauge: Afon Ystwyth at Llanilar",
+        "coords": [-4.0165, 52.3562],
+        "metric": "Alert Stage: 2.05m | Severe Flood: 2.70m | Basin: Ystwyth",
+        "action": "Plynlimon runoff corridor; B4575 valley crossings submerge rapidly.",
+    },
+    {
+        "id": "NRW_GAUGE_WYE_RHAYADER",
+        "name": "NRW Gauge: River Wye at Rhayader",
+        "coords": [-3.5132, 52.3018],
+        "metric": "Alert Stage: 2.10m | Severe Flood: 2.80m | Basin: Upper Wye",
+        "action": "Monitors Elan Valley & Cambrian runoff along the central A470 trunk corridor.",
     },
     {
         "id": "NRW_GAUGE_TEIFI",
@@ -214,11 +280,32 @@ VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
         "action": "Low-lying valley floor inundation risk across A482/A475 river crossings.",
     },
     {
+        "id": "NRW_GAUGE_CLEDDAU",
+        "name": "NRW Gauge: Western Cleddau at Haverfordwest",
+        "coords": [-4.9685, 51.8022],
+        "metric": "Alert Stage: 2.35m | Tidal Lock: 3.10m | Basin: Cleddau",
+        "action": "Preseli runoff meets Milford Haven spring tide; town quay and A4076 bridges flood.",
+    },
+    {
         "id": "NRW_GAUGE_TYWI",
         "name": "NRW Gauge: River Tywi at Carmarthen Quay",
         "coords": [-4.3055, 51.8542],
         "metric": "Alert Stage: 3.20m | Tidal Lock: 4.10m | Basin: Tywi",
         "action": "Wide floodplain inundation across A40/A484 valley approaches during spring tides.",
+    },
+    {
+        "id": "NRW_GAUGE_TAWE",
+        "name": "NRW Gauge: River Tawe at Pontardawe",
+        "coords": [-3.8482, 51.7165],
+        "metric": "Alert Stage: 2.25m | Severe Flood: 3.00m | Basin: Swansea Valley",
+        "action": "Drains western Bannau Brycheiniog; A4067 Swansea Valley floor prone to flash inundation.",
+    },
+    {
+        "id": "NRW_GAUGE_NEATH",
+        "name": "NRW Gauge: River Neath at Resolven",
+        "coords": [-3.7025, 51.7082],
+        "metric": "Alert Stage: 2.45m | Severe Flood: 3.20m | Basin: Vale of Neath",
+        "action": "Waterfall country spate discharge threatens A465 low-lying slip roads.",
     },
     {
         "id": "NRW_GAUGE_TAFF",
@@ -228,11 +315,110 @@ VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
         "action": "Confluence bottleneck for Rhondda and Taff valleys; severe urban flash-flood velocity.",
     },
     {
-        "id": "NRW_GAUGE_USK",
+        "id": "NRW_GAUGE_ELY",
+        "name": "NRW Gauge: River Ely at St Fagans (Cardiff West)",
+        "coords": [-3.2685, 51.4842],
+        "metric": "Alert Stage: 2.15m | Severe Flood: 2.85m | Basin: Ely",
+        "action": "Submerges western Cardiff low-lying crossings and A4232 approach culverts.",
+    },
+    {
+        "id": "NRW_GAUGE_USK_BRECON",
         "name": "NRW Gauge: River Usk at Brecon Bridge",
         "coords": [-3.3935, 51.9478],
         "metric": "Alert Stage: 2.30m | Severe Flood: 3.10m | Basin: Usk",
         "action": "Drains northern Bannau Brycheiniog; low town bridges and riverside roads flood rapidly.",
+    },
+    {
+        "id": "NRW_GAUGE_USK_NEWPORT",
+        "name": "NRW Gauge: River Usk Tidal Barrier / Newport",
+        "coords": [-2.9925, 51.5865],
+        "metric": "Alert Stage: 6.80m AOD | Severe Surge: 7.50m AOD | Basin: Lower Usk",
+        "action": "Extreme Bristol Channel tidal range coincides with Usk spate flow.",
+    },
+]
+
+# Objective Physical Terrain, Tidal Stranding & DfT STATS19 Road Defile Hazards
+# (Strictly physical/environmental hazards; Suicide Act 1961 compliant)
+VERIFIED_TERRAIN_AND_TIDAL_HAZARDS: List[Dict[str, Any]] = [
+    {
+        "id": "HAZ_TIDAL_TRAETH_LAFAN",
+        "name": "Traeth Lafan Tidal Stranding Zone (Llanfairfechan)",
+        "coords": [-4.0185, 53.2582],
+        "label": "COASTAL TIDAL STRANDING HAZARD",
+        "metric": "Fast Incoming Tide (4+ knots) | W_flood +10.0",
+        "action": "Extensive mudflats flood rapidly from behind via deep channels. Never cross without tide tables.",
+    },
+    {
+        "id": "HAZ_TERRAIN_A5_OGWEN",
+        "name": "A5 Ogwen Valley Rockfall & Ice Defile",
+        "coords": [-4.0150, 53.1250],
+        "label": "DFT STATS19 & TERRAIN DEFILE",
+        "metric": "STATS19 Cluster | Gale Funnel & Black Ice | W_incident +4.0",
+        "action": "Sheer glaciated slabs above single-carriageway; severe crosswinds and winter verglas.",
+    },
+    {
+        "id": "HAZ_TERRAIN_PENYPASS",
+        "name": "A4086 Pen-y-Pass High-Gradient Blackspot",
+        "coords": [-4.0205, 53.0801],
+        "label": "DFT STATS19 COLLISION DEFILE",
+        "metric": "1:8 Gradient | Blind Crests & Freezing Fog | W_incident +4.0",
+        "action": "Impassable in freezing fog/snow; deploy high-visibility markers if evacuating on foot.",
+    },
+    {
+        "id": "HAZ_TERRAIN_CRIMEA",
+        "name": "A470 Crimea Pass (Blaenau Ffestiniog Summit)",
+        "coords": [-3.9145, 53.0122],
+        "label": "HIGH-ALTITUDE PASS EXPOSURE",
+        "metric": "Elevation: 385m | Snowdrift & Whiteout Corridor | W_incident +3.5",
+        "action": "Frequently first North Wales trunk pass closed by snowdrifts and freezing cloud.",
+    },
+    {
+        "id": "HAZ_TERRAIN_BERWYN",
+        "name": "B4391 Milltir Cerrig Pass (Berwyn Mountains)",
+        "coords": [-3.5415, 52.8625],
+        "label": "EXPOSED UPLAND DEFILE",
+        "metric": "Elevation: 486m | Zero Shelter & Deep Drifts | W_incident +3.5",
+        "action": "Remote high-moorland pass with zero cellular signal and rapid whiteout exposure.",
+    },
+    {
+        "id": "HAZ_TIDAL_NEWGALE",
+        "name": "A487 Newgale Shingle Bank Storm Surge Zone",
+        "coords": [-5.1265, 51.8522],
+        "label": "COASTAL OVERTOPPING DEFILE",
+        "metric": "Spring Tide + SW Gale Overtopping | W_flood +10.0",
+        "action": "Storm waves hurl cobbles across A487 coastal causeway; divert inland via Roch/camrose.",
+    },
+    {
+        "id": "HAZ_TIDAL_CEFN_SIDAN",
+        "name": "Cefn Sidan / Tywi Estuary Quicksand & Tidal Bar",
+        "coords": [-4.3685, 51.7245],
+        "label": "COASTAL TIDAL STRANDING HAZARD",
+        "metric": "8-Mile Sandbar | Shifting Quicksand Channels | W_flood +10.0",
+        "action": "Rapid tidal cut-off across outer sandbanks; keep strictly above high-water dune line.",
+    },
+    {
+        "id": "HAZ_TIDAL_WORMS_HEAD",
+        "name": "Worm's Head Tidal Causeway (Rhossili)",
+        "coords": [-4.3165, 51.5648],
+        "label": "COASTAL TIDAL CUT-OFF",
+        "metric": "Submerged 5 Hours Per Tide Cycle | W_flood +10.0",
+        "action": "Rocky causeway floods 2.5h before high water; stranding risk with severe Atlantic swell.",
+    },
+    {
+        "id": "HAZ_TERRAIN_BLACK_MOUNTAIN",
+        "name": "A4069 Black Mountain Pass (Hairpin Exposure)",
+        "coords": [-3.8165, 51.8325],
+        "label": "DFT STATS19 & EXPOSURE DEFILE",
+        "metric": "Elevation: 493m | Sheer Drop-Offs & Ice | W_incident +4.0",
+        "action": "Exposed hairpin mountain road linking Brynaman and Llangadog; hazardous in mist/ice.",
+    },
+    {
+        "id": "HAZ_TIDAL_SULLY",
+        "name": "Sully Island Tidal Causeway (Vale of Glamorgan)",
+        "coords": [-3.1955, 51.3965],
+        "label": "COASTAL TIDAL STRANDING HAZARD",
+        "metric": "Bristol Channel 12m Tidal Surge | W_flood +10.0",
+        "action": "Second-highest tidal range in the world; causeway floods violently on incoming tide.",
     },
 ]
 
@@ -428,7 +614,7 @@ def classify_emf_buffer(voltage_v: Optional[int]) -> Optional[Tuple[int, str]]:
 def build_point_feature(
     raw_id: str, lon: float, lat: float, tags: Dict[str, Any]
 ) -> Optional[Dict[str, Any]]:
-    """Normalize a raw OSM Point node into Datum Zero's canonical schema."""
+    """Normalize a raw OSM Point/Way-Center element into Datum Zero's canonical schema."""
     if tags.get("natural") == "spring":
         category = "resupply"
         accent = "#00E5FF"
@@ -454,14 +640,13 @@ def build_point_feature(
         action = "Public right-of-way camera installation."
         weight = 0.0
     elif tags.get("ford") == "yes":
-        # Only retain named or vehicular road fords; skip un-named farm track stream crossings
         hw = str(tags.get("highway", "")).lower()
         if hw in MINOR_PATH_TYPES and not tags.get("name"):
             return None
         category = "hazards"
         accent = "#FF3B30"
-        label = "UNMONITORED RIVER FORD"
-        default_name = "Low-Water River Ford Crossing"
+        label = "VEHICULAR RIVER FORD"
+        default_name = "Low-Water Road River Ford"
         metric = "Flood Cut-Off Risk | W_flood +10.0"
         action = "Impassable during heavy rain/spate discharge. Verify water depth before crossing."
         weight = 10.0
@@ -487,23 +672,32 @@ def build_point_feature(
     }
 
 
-def query_overpass_fast(query: str, label: str) -> Optional[Dict[str, Any]]:
-    """Execute a lightweight Overpass query with mirror failover."""
-    headers = {"User-Agent": "DatumZero-ETL/3.3 (Civil Resilience Pipeline)"}
-    for mirror_url in OVERPASS_MIRRORS:
+def query_overpass_fast(
+    query: str, label: str, mirror_offset: int = 0
+) -> Optional[Dict[str, Any]]:
+    """Execute an Overpass query with round-robin mirror rotation and rate-limit backoff."""
+    headers = {"User-Agent": "DatumZero-ETL/3.4 (Civil Resilience Pipeline)"}
+    n = len(OVERPASS_MIRRORS)
+    ordered_mirrors = [OVERPASS_MIRRORS[(mirror_offset + i) % n] for i in range(n)]
+
+    for mirror_url in ordered_mirrors:
         logging.info("Querying Overpass (%s) via %s...", label, mirror_url)
         try:
             response = requests.post(
                 mirror_url,
                 data={"data": query},
                 headers=headers,
-                timeout=45,
+                timeout=55,
             )
+            if response.status_code == 429:
+                logging.warning("Mirror %s rate-limited (429) on %s. Rotating...", mirror_url, label)
+                time.sleep(4.0)
+                continue
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
             logging.warning("Mirror %s failed for %s (%s). Failing over...", mirror_url, label, exc)
-            time.sleep(1.5)
+            time.sleep(2.5)
     return None
 
 
@@ -723,7 +917,7 @@ def harvest_datamapwales_flood_zones() -> List[Dict[str, Any]]:
         "srsName": "EPSG:4326",
         "count": "150",
     }
-    headers = {"User-Agent": "DatumZero-ETL/3.3 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/3.4 (Civil Resilience Pipeline)"}
     features: List[Dict[str, Any]] = []
 
     try:
@@ -768,7 +962,7 @@ def harvest_datamapwales_flood_zones() -> List[Dict[str, Any]]:
 
 
 def build_verified_hazard_layers() -> List[Dict[str, Any]]:
-    """Compile statutory NRW gauges, COMAH exclusion buffers, and Welsh valley flood plains."""
+    """Compile statutory NRW gauges, terrain/tidal defiles, COMAH buffers, and flood plains."""
     features: List[Dict[str, Any]] = []
 
     for g in VERIFIED_NRW_GAUGES:
@@ -785,6 +979,24 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
                     "threatWeight": 5.0,
                     "primaryMetric": g["metric"],
                     "operationalAction": g["action"],
+                },
+            }
+        )
+
+    for th in VERIFIED_TERRAIN_AND_TIDAL_HAZARDS:
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": th["coords"]},
+                "properties": {
+                    "id": th["id"],
+                    "name": th["name"],
+                    "category": "hazards",
+                    "categoryLabel": th["label"],
+                    "accentColor": "#FF3B30",
+                    "threatWeight": 8.0,
+                    "primaryMetric": th["metric"],
+                    "operationalAction": th["action"],
                 },
             }
         )
@@ -875,35 +1087,47 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
 
 
 def harvest_osm_layers() -> List[Dict[str, Any]]:
-    """Extract OSM POIs across 6 balanced sub-tiles + high-voltage power lines & trunk bridges."""
+    """Extract OSM POIs across 7 balanced sub-tiles + high-voltage power lines & trunk bridges."""
     point_features: List[Dict[str, Any]] = []
     seen_ids = set()
 
-    # Query 1: 6 regional sub-tiles so North & South Wales urban centres never time out
-    for region_name, tile_bbox in WALES_SUBTILES:
+    for tile_idx, (region_name, tile_bbox) in enumerate(WALES_SUBTILES):
         min_lon, min_lat, max_lon, max_lat = tile_bbox
         bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+        # Query both node and way river fords via `out center;`
         poi_query = f"""
-        [out:json][timeout:40];
+        [out:json][timeout:50];
         (
           node["natural"="spring"]({bbox_str});
           node["emergency"="defibrillator"]({bbox_str});
           node["man_made"="surveillance"]({bbox_str});
           node["ford"="yes"]["highway"]({bbox_str});
+          way["ford"="yes"]["highway"]({bbox_str});
         );
-        out body;
+        out center;
         """
-        poi_data = query_overpass_fast(poi_query, f"POIs {region_name}")
+        poi_data = query_overpass_fast(
+            poi_query, f"POIs {region_name}", mirror_offset=tile_idx
+        )
         if poi_data is not None:
             tile_count = 0
             for el in poi_data.get("elements", []):
-                el_id = str(el.get("id", ""))
-                if not el_id or el_id in seen_ids:
+                el_type = el.get("type", "node")
+                el_id = f"{el_type}_{el.get('id', '')}"
+                if not el.get("id") or el_id in seen_ids:
                     continue
-                lat = el.get("lat")
-                lon = el.get("lon")
+
+                if el_type == "node":
+                    lat = el.get("lat")
+                    lon = el.get("lon")
+                else:
+                    center = el.get("center", {})
+                    lat = center.get("lat")
+                    lon = center.get("lon")
+
                 if lat is None or lon is None:
                     continue
+
                 pt = build_point_feature(
                     el_id, float(lon), float(lat), el.get("tags", {})
                 )
@@ -913,33 +1137,36 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
                     tile_count += 1
             logging.info("Extracted %d points for %s.", tile_count, region_name)
         else:
-            logging.warning("Tile %s timed out; restoring cached points for this sector.", region_name)
+            logging.warning(
+                "Tile %s unavailable; restoring cached points for this sector.",
+                region_name,
+            )
             for cached_pt in restore_cached_points_in_bbox(tile_bbox):
                 cid = str(cached_pt.get("properties", {}).get("id", ""))
                 if cid and cid not in seen_ids:
                     seen_ids.add(cid)
                     point_features.append(cached_pt)
-        time.sleep(1.5)
+        time.sleep(2.5)
 
     min_lon, min_lat, max_lon, max_lat = WALES_BBOX
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
 
     # Query 2: High-Voltage Power Lines
     power_query = f"""
-    [out:json][timeout:45];
+    [out:json][timeout:50];
     way["power"="line"]({bbox_str});
     out geom;
     """
-    power_data = query_overpass_fast(power_query, "PowerLines")
-    time.sleep(1.5)
+    power_data = query_overpass_fast(power_query, "PowerLines", mirror_offset=1)
+    time.sleep(2.0)
 
     # Query 3: Trunk & Primary Road Bridges (Single-Access Choke Points)
     bridge_query = f"""
-    [out:json][timeout:45];
+    [out:json][timeout:50];
     way["bridge"="yes"]["highway"~"^(trunk|primary)$"]({bbox_str});
     out geom;
     """
-    bridge_data = query_overpass_fast(bridge_query, "TrunkBridges")
+    bridge_data = query_overpass_fast(bridge_query, "TrunkBridges", mirror_offset=2)
 
     if power_data is not None:
         power_lines: List[Tuple[LineString, int, str]] = []
@@ -981,6 +1208,28 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
     return point_features + emf_polygons + bridge_polygons
 
 
+def z_order_sort_key(feature: Dict[str, Any]) -> int:
+    """
+    Order features so MapLibre renders critical Red (#FF3B30) hazard pins ON TOP of
+    dense Green/Cyan resource clusters rather than burying them underneath.
+    """
+    geom_type = feature.get("geometry", {}).get("type", "")
+    props = feature.get("properties", {})
+    category = props.get("category", "")
+    ring = props.get("cloudRing", "")
+
+    if geom_type in ("Polygon", "MultiPolygon"):
+        return 0 if ring == "halo" else 1
+    if category == "baseline":
+        return 2
+    if category in ("resupply", "medical"):
+        return 3
+    if category == "grid_down":
+        return 4
+    # category == "hazards" rendered last (highest visual Z-index)
+    return 5
+
+
 def main() -> None:
     osm_features = harvest_osm_layers()
     static_baseline = get_static_baseline_features()
@@ -994,7 +1243,7 @@ def main() -> None:
         fid = str(feat.get("properties", {}).get("id", len(merged_by_id)))
         merged_by_id[fid] = feat
 
-    all_features = list(merged_by_id.values())
+    all_features = sorted(merged_by_id.values(), key=z_order_sort_key)
 
     if not all_features:
         logging.error("Zero features compiled across all sources. Aborting write.")
