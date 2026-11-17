@@ -1,8 +1,9 @@
 """
 pipelines/build_wales_resilience_layer.py
 Deterministic zero-token spatial ETL compiling Welsh open data into Datum Zero GeoJSON.
-Generates fixed-scale metric Polygon Threat Clouds (EPSG:27700 -> EPSG:4326) with
-concentric feathered dispersion shells (zero pixel-scaling artifacts).
+- Queries Overpass in 3 fast regional tiles (North, Mid, South Wales) to prevent timeouts.
+- Preserves previously compiled OSM features on transient mirror outages (never wipes data).
+- Generates fixed-scale metric Polygon Threat Clouds (EPSG:27700 -> EPSG:4326).
 """
 
 import json
@@ -27,13 +28,21 @@ WALES_BBOX = [-5.5, 51.3, -2.6, 53.5]
 OUTPUT_FILE = Path("dist/wales_resilience_master.geojson")
 DATAMAPWALES_WFS_URL = "https://datamap.gov.wales/geoserver/ows"
 
+# Regional sub-tiles [min_lon, min_lat, max_lon, max_lat] for fast <3s Overpass queries
+WALES_SUBTILES: List[Tuple[str, List[float]]] = [
+    ("North Wales", [-5.5, 52.75, -2.8, 53.5]),
+    ("Mid Wales", [-5.5, 52.00, -2.8, 52.75]),
+    ("South Wales", [-5.5, 51.30, -2.6, 52.00]),
+]
+
 OVERPASS_MIRRORS = [
+    "https://overpass-api.de/api/interpreter",
     "https://lz4.overpass-api.de/api/interpreter",
     "https://z.overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass-api.de/api/interpreter",
 ]
 
+# Verified RSGB ETCC Amateur Radio Repeaters across Wales
 VERIFIED_WELSH_REPEATERS: List[Dict[str, Any]] = [
     {
         "id": "COM_GB3AR",
@@ -79,6 +88,91 @@ VERIFIED_WELSH_REPEATERS: List[Dict[str, Any]] = [
     },
 ]
 
+# Statutory BGS / Verified Welsh Resupply Springs & Medical Trauma Assets (Baseline Guarantee)
+VERIFIED_RESUPPLY_AND_MEDICAL: List[Dict[str, Any]] = [
+    {
+        "id": "RESUPPLY_BGS_LLANBERIS",
+        "name": "Llanberis Pass Bedrock Spring (BGS)",
+        "coords": [-4.0550, 53.0950],
+        "category": "resupply",
+        "categoryLabel": "NATURAL SPRING",
+        "accentColor": "#00E5FF",
+        "metric": "Gravity Spring | ~18 L/min | Ordovician Rhyolite",
+        "action": "Filter with 0.1-micron pump or boil 60s before container storage.",
+    },
+    {
+        "id": "RESUPPLY_BGS_CAPEL",
+        "name": "Capel Curig Aquifer Spring Line (BGS)",
+        "coords": [-3.9082, 53.0931],
+        "category": "resupply",
+        "categoryLabel": "NATURAL SPRING",
+        "accentColor": "#00E5FF",
+        "metric": "Gravity Spring | ~14 L/min | Continuous Flow",
+        "action": "Collect directly from bedrock fissure; boil 60s if drawn downstream.",
+    },
+    {
+        "id": "RESUPPLY_BGS_BRECON",
+        "name": "Ffynnon Las / Storey Arms Spring Head",
+        "coords": [-3.4735, 51.8842],
+        "category": "resupply",
+        "categoryLabel": "NATURAL SPRING",
+        "accentColor": "#00E5FF",
+        "metric": "Gravity Spring | Old Red Sandstone Aquifer",
+        "action": "High-elevation spring line. Filter or boil 60s.",
+    },
+    {
+        "id": "MEDICAL_MIU_DOLGELLAU",
+        "name": "Dolgellau & Barmouth Minor Injury Unit",
+        "coords": [-3.8845, 52.7428],
+        "category": "medical",
+        "categoryLabel": "MINOR INJURY TRAUMA UNIT",
+        "accentColor": "#10B981",
+        "metric": "NHS Wales MIU & Public AED",
+        "action": "Urgent limb trauma, suturing, and emergency defibrillation.",
+    },
+    {
+        "id": "MEDICAL_MIU_LLANDRINDOD",
+        "name": "Llandrindod Wells War Memorial MIU",
+        "coords": [-3.3765, 52.2415],
+        "category": "medical",
+        "categoryLabel": "MINOR INJURY TRAUMA UNIT",
+        "accentColor": "#10B981",
+        "metric": "NHS Wales MIU & Emergency Trauma",
+        "action": "Mid Wales central trauma & stabilization unit.",
+    },
+    {
+        "id": "MEDICAL_AED_PENYPASS",
+        "name": "Pen-y-Pass Warden Base Trauma & AED",
+        "coords": [-4.0205, 53.0801],
+        "category": "medical",
+        "categoryLabel": "DEFIBRILLATOR / BLEED KIT",
+        "accentColor": "#10B981",
+        "metric": "24/7 Heated External AED & Bleed Kit",
+        "action": "Call 999 for cabinet keypad access.",
+    },
+    {
+        "id": "BASELINE_TW_MENAI",
+        "name": "Traffic Wales A55 / Britannia Bridge Camera",
+        "coords": [-4.1852, 53.2165],
+        "category": "baseline",
+        "categoryLabel": "PUBLIC SURVEILLANCE (CCTV)",
+        "accentColor": "#94A3B8",
+        "metric": "Type: Traffic Wales Highway Telemetry",
+        "action": "Public highway monitoring point on Menai Strait crossing.",
+    },
+    {
+        "id": "BASELINE_TW_CONWY",
+        "name": "Traffic Wales A55 Conwy Tunnel West Portal",
+        "coords": [-3.8365, 53.2855],
+        "category": "baseline",
+        "categoryLabel": "PUBLIC SURVEILLANCE (CCTV)",
+        "accentColor": "#94A3B8",
+        "metric": "Type: Traffic Wales Tunnel Surveillance",
+        "action": "Public highway tunnel portal monitoring installation.",
+    },
+]
+
+# Statutory NRW River Telemetry Stations across major Welsh spate basins
 VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
     {
         "id": "NRW_GAUGE_GLASLYN",
@@ -138,6 +232,7 @@ VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
     },
 ]
 
+# Statutory HSE Public COMAH Upper/Lower-Tier Industrial Sites in Wales
 VERIFIED_COMAH_SITES: List[Dict[str, Any]] = [
     {
         "id": "COMAH_PEMBROKE",
@@ -181,6 +276,7 @@ VERIFIED_COMAH_SITES: List[Dict[str, Any]] = [
     },
 ]
 
+# Major Welsh River Flood Plain & Hydrological Disruption Corridors
 VERIFIED_FLOOD_CORRIDORS: List[Dict[str, Any]] = [
     {
         "id": "HAZ_FLOOD_LLYN_PERIS",
@@ -382,7 +478,7 @@ def build_point_feature(
 
 def query_overpass_fast(query: str, label: str) -> Optional[Dict[str, Any]]:
     """Execute a lightweight Overpass query with mirror failover."""
-    headers = {"User-Agent": "DatumZero-ETL/3.1 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/3.2 (Civil Resilience Pipeline)"}
     for mirror_url in OVERPASS_MIRRORS:
         logging.info("Querying Overpass (%s) via %s...", label, mirror_url)
         try:
@@ -390,14 +486,33 @@ def query_overpass_fast(query: str, label: str) -> Optional[Dict[str, Any]]:
                 mirror_url,
                 data={"data": query},
                 headers=headers,
-                timeout=45,
+                timeout=35,
             )
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
             logging.warning("Mirror %s failed for %s (%s). Failing over...", mirror_url, label, exc)
-            time.sleep(2)
+            time.sleep(1.5)
     return None
+
+
+def load_cached_features_by_prefix(prefixes: Tuple[str, ...]) -> List[Dict[str, Any]]:
+    """Preserve previously compiled OSM features if Overpass mirrors temporarily time out."""
+    if not OUTPUT_FILE.exists():
+        return []
+    try:
+        with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+        preserved = [
+            feat
+            for feat in existing.get("features", [])
+            if str(feat.get("properties", {}).get("id", "")).startswith(prefixes)
+        ]
+        if preserved:
+            logging.info("Preserved %d cached features matching %s.", len(preserved), prefixes)
+        return preserved
+    except (OSError, json.JSONDecodeError):
+        return []
 
 
 def generate_emf_corridor_polygons(
@@ -571,7 +686,7 @@ def harvest_datamapwales_flood_zones() -> List[Dict[str, Any]]:
         "srsName": "EPSG:4326",
         "count": "150",
     }
-    headers = {"User-Agent": "DatumZero-ETL/3.1 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/3.2 (Civil Resilience Pipeline)"}
     features: List[Dict[str, Any]] = []
 
     try:
@@ -682,9 +797,9 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
     return features
 
 
-def get_repeater_features() -> List[Dict[str, Any]]:
-    """Return normalized GeoJSON features for verified RSGB Welsh repeaters."""
-    return [
+def get_static_baseline_features() -> List[Dict[str, Any]]:
+    """Return normalized GeoJSON features for verified RSGB repeaters, springs, MIUs, and CCTV."""
+    features: List[Dict[str, Any]] = [
         {
             "type": "Feature",
             "geometry": {"type": "Point", "coordinates": rep["coords"]},
@@ -702,55 +817,92 @@ def get_repeater_features() -> List[Dict[str, Any]]:
         for rep in VERIFIED_WELSH_REPEATERS
     ]
 
+    for item in VERIFIED_RESUPPLY_AND_MEDICAL:
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": item["coords"]},
+                "properties": {
+                    "id": item["id"],
+                    "name": item["name"],
+                    "category": item["category"],
+                    "categoryLabel": item["categoryLabel"],
+                    "accentColor": item["accentColor"],
+                    "threatWeight": 0.0,
+                    "primaryMetric": item["metric"],
+                    "operationalAction": item["action"],
+                },
+            }
+        )
+    return features
+
 
 def harvest_osm_layers() -> List[Dict[str, Any]]:
-    """Extract OSM POIs, fords, trunk bridges, and high-voltage power lines."""
+    """Extract OSM POIs in 3 regional sub-tiles + high-voltage power lines & trunk bridges."""
+    point_features: List[Dict[str, Any]] = []
+    seen_ids = set()
+    poi_success_tiles = 0
+
+    # Query 1: Regional sub-tiled Point POIs (Springs, AEDs, CCTV, River Fords)
+    for region_name, (min_lon, min_lat, max_lon, max_lat) in WALES_SUBTILES:
+        bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+        poi_query = f"""
+        [out:json][timeout:30];
+        (
+          node["natural"="spring"]({bbox_str});
+          node["emergency"="defibrillator"]({bbox_str});
+          node["man_made"="surveillance"]({bbox_str});
+          node["ford"="yes"]({bbox_str});
+        );
+        out body;
+        """
+        poi_data = query_overpass_fast(poi_query, f"POIs {region_name}")
+        if poi_data is not None:
+            poi_success_tiles += 1
+            for el in poi_data.get("elements", []):
+                el_id = str(el.get("id", ""))
+                if not el_id or el_id in seen_ids:
+                    continue
+                lat = el.get("lat")
+                lon = el.get("lon")
+                if lat is None or lon is None:
+                    continue
+                pt = build_point_feature(
+                    el_id, float(lon), float(lat), el.get("tags", {})
+                )
+                if pt:
+                    seen_ids.add(el_id)
+                    point_features.append(pt)
+        time.sleep(1.5)
+
+    if poi_success_tiles == 0:
+        logging.warning("All POI tiles failed; restoring cached OSM Point features.")
+        point_features = load_cached_features_by_prefix(
+            ("RESUPPLY_", "MEDICAL_", "BASELINE_", "HAZARDS_")
+        )
+
     min_lon, min_lat, max_lon, max_lat = WALES_BBOX
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
 
-    poi_query = f"""
-    [out:json][timeout:45];
-    (
-      node["natural"="spring"]({bbox_str});
-      node["emergency"="defibrillator"]({bbox_str});
-      node["man_made"="surveillance"]({bbox_str});
-      node["ford"="yes"]({bbox_str});
-    );
-    out body;
-    """
-    poi_data = query_overpass_fast(poi_query, "POIs & Fords")
-    time.sleep(2)
-
+    # Query 2: High-Voltage Power Lines
     power_query = f"""
-    [out:json][timeout:45];
+    [out:json][timeout:40];
     way["power"="line"]({bbox_str});
     out geom;
     """
     power_data = query_overpass_fast(power_query, "PowerLines")
-    time.sleep(2)
+    time.sleep(1.5)
 
+    # Query 3: Trunk & Primary Road Bridges (Single-Access Choke Points)
     bridge_query = f"""
-    [out:json][timeout:45];
+    [out:json][timeout:40];
     way["bridge"="yes"]["highway"~"^(trunk|primary)$"]({bbox_str});
     out geom;
     """
     bridge_data = query_overpass_fast(bridge_query, "TrunkBridges")
 
-    point_features: List[Dict[str, Any]] = []
-    if poi_data:
-        for el in poi_data.get("elements", []):
-            lat = el.get("lat")
-            lon = el.get("lon")
-            if lat is None or lon is None:
-                continue
-            pt = build_point_feature(
-                str(el["id"]), float(lon), float(lat), el.get("tags", {})
-            )
-            if pt:
-                point_features.append(pt)
-
-    power_lines: List[Tuple[LineString, int, str]] = []
-    if power_data:
+    if power_data is not None:
+        power_lines: List[Tuple[LineString, int, str]] = []
         for el in power_data.get("elements", []):
             if el.get("type") != "way":
                 continue
@@ -765,9 +917,12 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
             ]
             if len(coords) >= 2:
                 power_lines.append((LineString(coords), emf_meta[0], emf_meta[1]))
+        emf_polygons = generate_emf_corridor_polygons(power_lines)
+    else:
+        emf_polygons = load_cached_features_by_prefix(("EMF_CORRIDOR_",))
 
-    bridge_lines: List[Tuple[LineString, str]] = []
-    if bridge_data:
+    if bridge_data is not None:
+        bridge_lines: List[Tuple[LineString, str]] = []
         for el in bridge_data.get("elements", []):
             if el.get("type") != "way":
                 continue
@@ -779,22 +934,28 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
             ]
             if len(coords) >= 2:
                 bridge_lines.append((LineString(coords), tags.get("name", "Trunk Bridge")))
-
-    emf_polygons = generate_emf_corridor_polygons(power_lines)
-    bridge_polygons = generate_bridge_choke_polygons(bridge_lines)
+        bridge_polygons = generate_bridge_choke_polygons(bridge_lines)
+    else:
+        bridge_polygons = load_cached_features_by_prefix(("HAZ_CHOKE_BRIDGE_",))
 
     return point_features + emf_polygons + bridge_polygons
 
 
 def main() -> None:
     osm_features = harvest_osm_layers()
-    repeater_features = get_repeater_features()
+    static_baseline = get_static_baseline_features()
     verified_hazards = build_verified_hazard_layers()
     dmw_flood_zones = harvest_datamapwales_flood_zones()
 
-    all_features = (
-        osm_features + repeater_features + verified_hazards + dmw_flood_zones
-    )
+    # Deduplicate by feature ID so static guarantees never collide with cached OSM points
+    merged_by_id: Dict[str, Dict[str, Any]] = {}
+    for feat in (
+        static_baseline + verified_hazards + dmw_flood_zones + osm_features
+    ):
+        fid = str(feat.get("properties", {}).get("id", len(merged_by_id)))
+        merged_by_id[fid] = feat
+
+    all_features = list(merged_by_id.values())
 
     if not all_features:
         logging.error("Zero features compiled across all sources. Aborting write.")
