@@ -2,15 +2,15 @@
 pipelines/build_wales_resilience_layer.py
 Deterministic zero-token spatial ETL compiling Welsh open data into Datum Zero GeoJSON.
 
-Visual & Geometric Architecture:
-- Zero squares, rectangles, or pixel-scaled circles.
-- Every areal zone (floodplains, 50Hz EMF corridors, cellular dead zones, COMAH buffers,
-  Radon action belts, SSSIs, Ancient Woodland biomes, CRoW Open Access massifs) is shaped
-  as a multi-vertex natural geographic footprint and morphologically rounded in British
-  National Grid (EPSG:27700) into three concentric feathered dispersion shells:
-    * cloudRing: "core" (inner physical boundary)
-    * cloudRing: "mid"  (soft intermediate dispersion plume)
-    * cloudRing: "halo" (outer vaporous atmospheric fade)
+Dual-Layer Readability Architecture:
+Every feature emits two tiers of text in `properties`:
+1. Immediate Peek Tier (`plainBadge`, `plainSummary`):
+   - Plain, everyday English with zero GIS, RF, or geological jargon.
+   - Immediately readable in 2 seconds when tapping a point or cloud on mobile.
+2. Expanded Technical Tier (`categoryLabel`, `primaryMetric`, `operationalAction`, `threatWeight`):
+   - Full specialist telemetry (VHF frequencies/CTCSS, BGS geology, NRW stage thresholds,
+     Biot-Savart EMF radii, UKHSA radon bands, statutory WCA 1981 / Theft Act 1968 rules)
+     revealed when the user expands the bottom sheet.
 """
 
 import json
@@ -58,302 +58,333 @@ OVERPASS_MIRRORS = [
 VERIFIED_WELSH_REPEATERS: List[Dict[str, Any]] = [
     {
         "id": "COM_GB3AR",
-        "name": "GB3AR - Bangor Mountain Repeater",
+        "name": "GB3AR - Bangor Mountain Radio Repeater",
         "coords": [-4.1262, 53.2214],
-        "metric": "TX: 145.725 MHz | RX: 145.125 MHz | CTCSS: 103.5 Hz",
-        "action": "2m analog voice repeater (-0.6 MHz offset). Backup AGM battery power.",
+        "plainSummary": "Backup emergency two-way radio relay with battery power for when mobile networks fail.",
+        "metric": "TX: 145.725 MHz | RX: 145.125 MHz | Offset: -0.6 MHz | CTCSS: 103.5 Hz",
+        "action": "2m analog voice repeater (-0.6 MHz shift). Solar + deep-cycle AGM battery backup monitored by North Wales RAYNET.",
     },
     {
         "id": "COM_GB3GW",
-        "name": "GB3GW - Great Orme Repeater",
+        "name": "GB3GW - Great Orme Radio Repeater",
         "coords": [-3.8550, 53.3320],
-        "metric": "TX: 433.000 MHz | RX: 434.600 MHz | CTCSS: 103.5 Hz",
-        "action": "70cm coastal repeater (+1.6 MHz offset). Covers Conwy Bay & Menai Strait.",
+        "plainSummary": "Coastal emergency two-way radio relay covering Conwy Bay, Llandudno, and Anglesey.",
+        "metric": "TX: 433.000 MHz | RX: 434.600 MHz | Offset: +1.6 MHz | CTCSS: 103.5 Hz",
+        "action": "70cm coastal analog voice repeater (+1.6 MHz shift). Long-range line-of-sight across Conwy Bay & Menai Strait.",
     },
     {
         "id": "COM_GB3LL",
-        "name": "GB3LL - Llanddona Anglesey Repeater",
+        "name": "GB3LL - Llanddona Anglesey Radio Repeater",
         "coords": [-4.1350, 53.2940],
-        "metric": "TX: 145.775 MHz | RX: 145.175 MHz | CTCSS: 103.5 Hz",
-        "action": "2m primary Anglesey repeater (-0.6 MHz offset). Line-of-sight to Caernarfon.",
+        "plainSummary": "Primary Anglesey emergency two-way radio relay reaching across to Caernarfon.",
+        "metric": "TX: 145.775 MHz | RX: 145.175 MHz | Offset: -0.6 MHz | CTCSS: 103.5 Hz",
+        "action": "2m primary Anglesey repeater (-0.6 MHz shift). Line-of-sight to Caernarfon and north Eryri coast.",
     },
     {
         "id": "COM_GB3WW",
-        "name": "GB3WW - Preseli Hills Repeater (Pembrokeshire)",
+        "name": "GB3WW - Preseli Hills Radio Repeater",
         "coords": [-4.7731, 51.9462],
-        "metric": "TX: 145.625 MHz | RX: 145.025 MHz | CTCSS: 77.0 Hz",
-        "action": "2m wide-area West Wales repeater (-0.6 MHz offset).",
+        "plainSummary": "Wide-area West Wales emergency two-way radio relay atop the Preseli ridge.",
+        "metric": "TX: 145.625 MHz | RX: 145.025 MHz | Offset: -0.6 MHz | CTCSS: 77.0 Hz",
+        "action": "2m wide-area West Wales repeater (-0.6 MHz shift) covering Pembrokeshire and Carmarthenshire.",
     },
     {
         "id": "COM_GB3SW",
-        "name": "GB3SW - Kilvey Hill Repeater (Swansea)",
+        "name": "GB3SW - Kilvey Hill Radio Repeater (Swansea)",
         "coords": [-3.9167, 51.6247],
-        "metric": "TX: 145.675 MHz | RX: 145.075 MHz | CTCSS: 110.9 Hz",
-        "action": "2m South Wales coastal & Gower repeater (-0.6 MHz offset).",
+        "plainSummary": "Emergency two-way radio relay covering Swansea Bay and the Gower peninsula.",
+        "metric": "TX: 145.675 MHz | RX: 145.075 MHz | Offset: -0.6 MHz | CTCSS: 110.9 Hz",
+        "action": "2m South Wales coastal & Gower repeater (-0.6 MHz shift).",
     },
     {
         "id": "COM_GB3MH",
-        "name": "GB3MH - Mynydd Machen Repeater (South Valleys)",
+        "name": "GB3MH - Mynydd Machen Radio Repeater",
         "coords": [-3.1194, 51.5942],
-        "metric": "TX: 145.650 MHz | RX: 145.050 MHz | CTCSS: 110.9 Hz",
-        "action": "2m repeater serving Rhondda, Cynon, and Taff valley corridors.",
+        "plainSummary": "Emergency two-way radio relay serving the Rhondda, Cynon, and Taff valleys.",
+        "metric": "TX: 145.650 MHz | RX: 145.050 MHz | Offset: -0.6 MHz | CTCSS: 110.9 Hz",
+        "action": "2m repeater serving South Wales valley corridors and Newport approaches.",
     },
     {
         "id": "COM_GB3MW",
-        "name": "GB3MW - Aberystwyth / Plynlimon Repeater",
+        "name": "GB3MW - Aberystwyth / Plynlimon Radio Repeater",
         "coords": [-3.9825, 52.4142],
-        "metric": "TX: 145.600 MHz | RX: 145.000 MHz | CTCSS: 77.0 Hz",
-        "action": "2m Mid-Wales coastal & Cambrian Mountains repeater (-0.6 MHz offset).",
+        "plainSummary": "Mid-Wales emergency two-way radio relay covering Cardigan Bay and the Cambrian hills.",
+        "metric": "TX: 145.600 MHz | RX: 145.000 MHz | Offset: -0.6 MHz | CTCSS: 77.0 Hz",
+        "action": "2m Mid-Wales coastal & Cambrian Mountains repeater (-0.6 MHz shift).",
     },
 ]
 
-# Topological Cellular Dead Zones (Winding valley corridors -> organic ribbon clouds)
+# Topological Cellular Dead Zones
 VERIFIED_CELLULAR_DEAD_ZONES: List[Dict[str, Any]] = [
     {
         "id": "SIG_DEAD_OGWEN",
-        "name": "Nant Ffrancon & Ogwen Valley Cellular Dead Zone",
+        "name": "Ogwen Valley — No Mobile Signal",
         "line": [[-4.0560, 53.1680], [-4.0340, 53.1440], [-4.0160, 53.1240], [-3.9880, 53.1120], [-3.9580, 53.1030]],
         "buffer_m": 950,
-        "metric": "4-MNO Blackout (EE/Three/O2/Vodafone) | W_signal +2.5",
+        "plainSummary": "No mobile phone signal or mobile data in this steep valley. Download maps before entering.",
+        "metric": "4-MNO Blackout (EE/Three/O2/Vodafone) | Routing Penalty: W_signal +2.5",
         "action": "Deep glaciated trough blocks mast line-of-sight. Use 2m VHF 145.500 MHz or GB3AR (145.725 MHz).",
     },
     {
         "id": "SIG_DEAD_LLANBERIS_PASS",
-        "name": "Llanberis Pass & Pen-y-Pass Signal Shadow",
+        "name": "Llanberis Pass — No Mobile Signal",
         "line": [[-4.1080, 53.1110], [-4.0750, 53.0990], [-4.0420, 53.0890], [-4.0120, 53.0800], [-3.9820, 53.0830]],
         "buffer_m": 900,
-        "metric": "4-MNO Blackout | Glaciated Slate Gorge | W_signal +2.5",
+        "plainSummary": "No mobile phone signal or 999 voice reception inside this steep mountain pass.",
+        "metric": "4-MNO Blackout | Glaciated Slate Gorge | Routing Penalty: W_signal +2.5",
         "action": "Zero mobile data or 999 voice inside pass. Climb above 450m ridge or relay via Capel Curig.",
     },
     {
         "id": "SIG_DEAD_RHINOGYDD",
-        "name": "Rhinogydd & Coed y Brenin Interior Dead Zone",
+        "name": "Rhinogydd & Coed y Brenin — No Mobile Signal",
         "line": [[-4.0220, 52.8740], [-3.9850, 52.8480], [-3.9420, 52.8220], [-3.9120, 52.7960], [-3.8880, 52.7750]],
         "buffer_m": 1500,
-        "metric": "4-MNO Blackout | Cambrian Shielding | W_signal +2.5",
+        "plainSummary": "Wide mountain area with no mobile phone reception across any UK network.",
+        "metric": "4-MNO Blackout | Cambrian Shielding | Routing Penalty: W_signal +2.5",
         "action": "Persistent upland shadow across Ardudwy range. Pre-cache offline route before entering.",
     },
     {
         "id": "SIG_DEAD_BERWYN",
-        "name": "Berwyn Mountains & Milltir Cerrig Signal Shadow",
+        "name": "Berwyn Mountains — No Mobile Signal",
         "line": [[-3.6050, 52.8910], [-3.5680, 52.8710], [-3.5320, 52.8520], [-3.4920, 52.8360], [-3.4550, 52.8210]],
         "buffer_m": 1400,
-        "metric": "4-MNO Blackout | High Moorland Defile | W_signal +2.5",
+        "plainSummary": "Remote high moorland road with zero phone signal and long stretches without shelter.",
+        "metric": "4-MNO Blackout | High Moorland Defile | Routing Penalty: W_signal +2.5",
         "action": "Zero cellular coverage along B4391 pass. Maintain BLE stand-off mesh with convoy.",
     },
     {
         "id": "SIG_DEAD_ELAN_CAMBRIAN",
-        "name": "Elan Valley & Elenydd Wilderness Dead Zone",
+        "name": "Elan Valley Wilderness — No Mobile Signal",
         "line": [[-3.7550, 52.3520], [-3.7020, 52.3180], [-3.6480, 52.2820], [-3.6040, 52.2540], [-3.5680, 52.2280]],
         "buffer_m": 1900,
-        "metric": "4-MNO Blackout | Cambrian Plateau | W_signal +2.5",
+        "plainSummary": "Large Mid-Wales upland zone with no mobile signal or internet access.",
+        "metric": "4-MNO Blackout | Cambrian Plateau | Routing Penalty: W_signal +2.5",
         "action": "Largest continuous cellular shadow in Mid Wales. Rely on offline .pmtiles & VHF simplex.",
     },
     {
         "id": "SIG_DEAD_BLACK_MOUNTAIN",
-        "name": "Western Bannau Brycheiniog / Black Mountain Shadow",
+        "name": "Black Mountain Pass — No Mobile Signal",
         "line": [[-3.8540, 51.8720], [-3.8160, 51.8440], [-3.7780, 51.8210], [-3.7420, 51.8040], [-3.7080, 51.7910]],
         "buffer_m": 1350,
-        "metric": "4-MNO Blackout | A4069 & Usk Headwaters | W_signal +2.5",
+        "plainSummary": "Steep hills block mobile phone towers here. Climb to higher ridge ground for signal.",
+        "metric": "4-MNO Blackout | A4069 & Usk Headwaters | Routing Penalty: W_signal +2.5",
         "action": "Steep escarpment blocks South Wales masts. Gain northern ridge crest for line-of-sight.",
     },
 ]
 
-# High-Power Welsh Broadcast & RF Transmitter Sites (Ofcom Spectrum Records)
+# High-Power Welsh Broadcast & RF Transmitter Sites
 VERIFIED_RF_TRANSMITTERS: List[Dict[str, Any]] = [
     {
         "id": "RF_TX_WENVOE",
-        "name": "Wenvoe High-Power Broadcast & Telecom Hub (300m Mast)",
+        "name": "Wenvoe Major TV & Radio Mast",
         "coords": [-3.2818, 51.4595],
         "radius_m": 850,
-        "metric": "ERP: 500 kW UHF / VHF | High RF Density Contour",
+        "plainSummary": "High-power broadcast mast. Strong radio signals nearby can interfere with handheld radios.",
+        "metric": "ERP: 500 kW UHF / VHF | 850m High RF Density Contour",
         "action": "Strong local RF field; potential front-end overload on unshielded handheld receivers within 850m.",
     },
     {
         "id": "RF_TX_MOELYPARC",
-        "name": "Moel-y-Parc Strategic Broadcast & Microwave Mast",
+        "name": "Moel-y-Parc TV & Radio Mast",
         "coords": [-3.3145, 53.2255],
         "radius_m": 750,
+        "plainSummary": "High hilltop broadcast mast with strong line-of-sight across North-East Wales.",
         "metric": "ERP: 100 kW | Clwydian Range Line-of-Sight Hub",
         "action": "Dominant North-East Wales RF beacon. Elevated ground provides optimal 2m/70cm simplex range.",
     },
     {
         "id": "RF_TX_BLAENPLWYF",
-        "name": "Blaenplwyf Coastal Broadcast & Radar Station",
+        "name": "Blaenplwyf Coastal Radio & TV Mast",
         "coords": [-4.1145, 52.3715],
         "radius_m": 750,
+        "plainSummary": "Major coastal broadcast mast near Aberystwyth; expect strong radio interference close by.",
         "metric": "ERP: 100 kW | Cardigan Bay Maritime & Broadcast Hub",
         "action": "Primary Mid-Wales coastal transmitter. Expect elevated RF noise floor near perimeter.",
     },
     {
         "id": "RF_TX_LLANDDONA",
-        "name": "Llanddona Anglesey Strategic Broadcast Station",
+        "name": "Llanddona Anglesey Radio & TV Mast",
         "coords": [-4.1325, 53.2932],
         "radius_m": 700,
+        "plainSummary": "Major hilltop broadcast mast on Anglesey co-located with emergency radio relay GB3LL.",
         "metric": "ERP: 100 kW | Co-located with GB3LL 2m Repeater",
         "action": "Covers Menai Strait, Eryri north coast, and Irish Sea approaches.",
     },
 ]
 
-# Organic Multi-Vertex UKHSA / BGS Radon Gas Action Belts (Zero Rectangles)
+# Organic Multi-Vertex UKHSA / BGS Radon Gas Action Belts
 VERIFIED_RADON_ZONES: List[Dict[str, Any]] = [
     {
         "id": "RADON_HALKYN_CLWYD",
-        "name": "UKHSA Radon Action Zone: Halkyn Mountain & Clwydian Limestone",
+        "name": "Halkyn & Clwydian Natural Radon Gas Area",
         "poly": [
             [-3.335, 53.268], [-3.265, 53.275], [-3.195, 53.258], [-3.135, 53.225],
             [-3.112, 53.175], [-3.148, 53.135], [-3.215, 53.142], [-3.268, 53.168],
             [-3.308, 53.212], [-3.335, 53.268],
         ],
+        "plainSummary": "Natural underground radon gas is high here. Keep basements, caves, and low shelters well ventilated.",
         "metric": "UKHSA Class: >30% Exceedance (>200 Bq/m3 Action Level)",
         "action": "Carboniferous limestone karst releases elevated radon gas. Ventilate basements, caves, or subterranean shelters.",
     },
     {
         "id": "RADON_GWYNEDD_SLATE",
-        "name": "UKHSA Radon Action Zone: Gwynedd Granite & Slate Belt",
+        "name": "Gwynedd Slate Belt Natural Radon Gas Area",
         "poly": [
             [-4.215, 53.178], [-4.125, 53.192], [-4.035, 53.165], [-3.975, 53.115],
             [-3.962, 53.055], [-4.028, 53.035], [-4.115, 53.048], [-4.178, 53.082],
             [-4.212, 53.132], [-4.215, 53.178],
         ],
+        "plainSummary": "Rock here can release natural radon gas. Avoid sleeping in unventilated cellars or old mine tunnels.",
         "metric": "UKHSA Class: 10–30% Exceedance (>200 Bq/m3 Action Level)",
         "action": "Fractured metamorphic slate & granite bedrock. Avoid prolonged occupancy in unventilated mine adits or cellars.",
     },
     {
         "id": "RADON_PEMBROKE_GOWER",
-        "name": "UKHSA Radon Action Zone: South Pembrokeshire & Gower Limestone",
+        "name": "South Pembrokeshire & Gower Radon Gas Area",
         "poly": [
             [-5.045, 51.712], [-4.935, 51.725], [-4.815, 51.708], [-4.695, 51.685],
             [-4.662, 51.635], [-4.745, 51.612], [-4.865, 51.608], [-4.975, 51.628],
             [-5.035, 51.668], [-5.045, 51.712],
         ],
+        "plainSummary": "Elevated natural radon gas in coastal limestone. Keep ground-level shelters well aired.",
         "metric": "UKHSA Class: 10–30% Exceedance (>200 Bq/m3 Action Level)",
         "action": "Coastal limestone fault zone. Ensure active cross-ventilation in ground-level or below-grade shelters.",
     },
     {
         "id": "RADON_VALLEYS_TAFF",
-        "name": "UKHSA Radon Action Zone: South Wales Coalfield & Taff Gorge",
+        "name": "South Wales Valleys Radon Gas Area",
         "poly": [
             [-3.515, 51.735], [-3.415, 51.748], [-3.305, 51.732], [-3.218, 51.695],
             [-3.205, 51.625], [-3.258, 51.582], [-3.355, 51.578], [-3.445, 51.608],
             [-3.498, 51.668], [-3.515, 51.735],
         ],
+        "plainSummary": "Underground rock strata can trap natural radon gas in basements and enclosed ground floors.",
         "metric": "UKHSA Class: 10–30% Exceedance (>200 Bq/m3 Action Level)",
         "action": "Deep-mined strata & valley fault lines concentrate soil gas in enclosed lower storeys.",
     },
 ]
 
-# Organic Multi-Vertex Statutory SSSIs (Wildlife & Countryside Act 1981 — STRICT NO-FORAGING ZONES)
+# Statutory SSSIs (Wildlife & Countryside Act 1981 — STRICT NO-FORAGING ZONES)
 VERIFIED_SSSI_ZONES: List[Dict[str, Any]] = [
     {
         "id": "SSSI_ERYRI_CORE",
-        "name": "SSSI: Eryri / Yr Wyddfa & Cwm Idwal National Nature Reserve",
+        "name": "Yr Wyddfa & Cwm Idwal Protected Nature Reserve",
         "poly": [
             [-4.105, 53.128], [-4.045, 53.142], [-3.992, 53.124], [-3.978, 53.082],
             [-4.005, 53.048], [-4.058, 53.044], [-4.095, 53.068], [-4.112, 53.098],
             [-4.105, 53.128],
         ],
-        "metric": "Statutory SSSI | Wildlife & Countryside Act 1981",
+        "plainSummary": "Strictly protected wildlife area. Do NOT pick plants, uproot anything, or disturb wildlife here.",
+        "metric": "Statutory SSSI | Wildlife & Countryside Act 1981 (Section 28)",
         "action": "FORAGING PROHIBITED: High-Conservation SSSI Zone. No harvesting, uprooting, or disturbance permitted.",
     },
     {
         "id": "SSSI_CORS_CARON",
-        "name": "SSSI: Cors Caron Raised Bog National Nature Reserve (Tregaron)",
+        "name": "Cors Caron Protected Bog Reserve (Tregaron)",
         "poly": [
             [-3.948, 52.266], [-3.918, 52.275], [-3.892, 52.262], [-3.888, 52.238],
             [-3.908, 52.218], [-3.938, 52.222], [-3.954, 52.242], [-3.948, 52.266],
         ],
-        "metric": "Statutory SSSI & Ramsar Wetland | WCA 1981",
+        "plainSummary": "Protected deep peat bog. No plant picking allowed — stay strictly on the wooden boardwalks.",
+        "metric": "Statutory SSSI & Ramsar Wetland | Wildlife & Countryside Act 1981",
         "action": "FORAGING PROHIBITED: Protected peatland habitat. Keep strictly to designated raised boardwalks.",
     },
     {
         "id": "SSSI_GOWER_COAST",
-        "name": "SSSI: Gower Coast (Rhossili to Port Eynon)",
+        "name": "Gower Cliffs Protected Coastal Reserve",
         "poly": [
             [-4.324, 51.578], [-4.278, 51.582], [-4.225, 51.568], [-4.198, 51.548],
             [-4.218, 51.532], [-4.268, 51.535], [-4.308, 51.548], [-4.328, 51.564],
             [-4.324, 51.578],
         ],
+        "plainSummary": "Protected coastal cliff reserve. No plant harvesting or disturbing nesting seabirds.",
         "metric": "Statutory Coastal SSSI | Wildlife & Countryside Act 1981",
         "action": "FORAGING PROHIBITED: Protected maritime cliff flora and seabird nesting habitat.",
     },
 ]
 
-# Organic Multi-Vertex Ancient Woodland Foraging Biomes (Theft Act 1968 Four Fs; wild fungi excluded)
+# Ancient Woodland Foraging Biomes
 VERIFIED_FORAGING_BIOMES: List[Dict[str, Any]] = [
     {
         "id": "FORAGE_COED_Y_BRENIN",
-        "name": "Ancient Woodland Biome: Coed y Brenin & Ganllwyd Oakwoods",
+        "name": "Coed y Brenin Woodland (Shelter & Wild Edibles)",
         "poly": [
             [-3.918, 52.838], [-3.878, 52.846], [-3.842, 52.832], [-3.836, 52.798],
             [-3.862, 52.776], [-3.898, 52.782], [-3.922, 52.808], [-3.918, 52.838],
         ],
+        "plainSummary": "Dense forest shelter with seasonal berries, nuts, and edible leaves. Never eat wild mushrooms.",
         "metric": "NRW Ancient Semi-Natural Woodland | Theft Act 1968 Compliant",
         "action": "Legal personal-use above-ground flora only (wild garlic, nettles, bilberries, hazelnuts). No uprooting. DO NOT harvest wild fungi/mushrooms.",
     },
     {
         "id": "FORAGE_GWYDYR_CONWY",
-        "name": "Ancient Woodland Biome: Gwydyr Forest & Betws-y-Coed Valley",
+        "name": "Gwydyr Forest Woodland (Shelter & Wild Edibles)",
         "poly": [
             [-3.858, 53.118], [-3.818, 53.126], [-3.782, 53.112], [-3.776, 53.082],
             [-3.802, 53.066], [-3.838, 53.072], [-3.862, 53.095], [-3.858, 53.118],
         ],
+        "plainSummary": "Good wind shelter, fallen firewood, and seasonal berries/leaves. Never pick wild mushrooms.",
         "metric": "Mixed Broadleaf/Conifer Canopy | Thermal Shelter & Flora",
         "action": "Dense canopy windbreak & fallen deadwood fuel. Personal above-ground foliage/berries only; strictly exclude wild mushrooms.",
     },
     {
         "id": "FORAGE_ELAN_OAKWOODS",
-        "name": "Ancient Woodland Biome: Lower Elan & Wye Valley Broadleaf",
+        "name": "Elan & Wye Oakwoods (Shelter & Wild Edibles)",
         "poly": [
             [-3.578, 52.288], [-3.535, 52.296], [-3.492, 52.282], [-3.486, 52.248],
             [-3.515, 52.226], [-3.555, 52.232], [-3.582, 52.258], [-3.578, 52.288],
         ],
+        "plainSummary": "Oak and hazel woodland with seasonal hazelnuts, blackberries, and sorrel. Never eat wild mushrooms.",
         "metric": "Sessile Oak & Hazel Coppice | Theft Act 1968 Compliant",
         "action": "High seasonal mast (hazelnuts, blackberries, sorrel). Above-ground personal harvest only; zero wild fungi.",
     },
     {
         "id": "FORAGE_WENTWOOD",
-        "name": "Ancient Woodland Biome: Wentwood & Wye Gorge Broadleaf",
+        "name": "Wentwood Forest (Shelter & Wild Edibles)",
         "poly": [
             [-2.838, 51.656], [-2.775, 51.668], [-2.705, 51.652], [-2.696, 51.618],
             [-2.735, 51.596], [-2.795, 51.602], [-2.842, 51.628], [-2.838, 51.656],
         ],
+        "plainSummary": "South Wales ancient broadleaf forest with wild garlic, elderberries, and hazel. Never eat wild mushrooms.",
         "metric": "Largest Ancient Woodland in South Wales | Broadleaf Canopy",
         "action": "Rich spring wild garlic, elderflower/elderberry, and hazel. Above-ground personal use only; exclude wild fungi.",
     },
 ]
 
-# Organic Multi-Vertex Designated Open Access Land (CRoW Act 2000)
+# Designated Open Access Land (CRoW Act 2000)
 VERIFIED_CROW_ACCESS_LAND: List[Dict[str, Any]] = [
     {
         "id": "CROW_CARNEDDAU_GLYDERAU",
-        "name": "CRoW Open Access Land: Carneddau & Glyderau Massif",
+        "name": "Carneddau & Glyderau Open Mountain Land",
         "poly": [
             [-4.055, 53.205], [-3.965, 53.218], [-3.872, 53.195], [-3.862, 53.145],
             [-3.895, 53.108], [-3.975, 53.112], [-4.038, 53.135], [-4.062, 53.172],
             [-4.055, 53.205],
         ],
+        "plainSummary": "Public right to walk freely off-path across open mountain ground to bypass flooded valleys.",
         "metric": "CRoW Act 2000 Statutory Access | Mountain & Moorland",
         "action": "Legal right of foot access across uncultivated upland terrain for high-contour ridge bypasses.",
     },
     {
         "id": "CROW_BANNAU_CENTRAL",
-        "name": "CRoW Open Access Land: Central Bannau Brycheiniog (Pen y Fan)",
+        "name": "Central Brecon Beacons Open Mountain Land",
         "poly": [
             [-3.538, 51.912], [-3.445, 51.924], [-3.348, 51.905], [-3.338, 51.858],
             [-3.385, 51.828], [-3.465, 51.832], [-3.525, 51.855], [-3.545, 51.885],
             [-3.538, 51.912],
         ],
+        "plainSummary": "Public right to walk freely off-path across open mountain ridges above valley flood zones.",
         "metric": "CRoW Act 2000 Statutory Access | Old Red Sandstone Escarpment",
         "action": "Legal off-trail upland movement zone above valley flood corridors.",
     },
     {
         "id": "CROW_PRESELI_HILLS",
-        "name": "CRoW Open Access Land: Mynydd Preseli Ridge (Pembrokeshire)",
+        "name": "Preseli Hills Open Moorland",
         "poly": [
             [-4.858, 51.972], [-4.775, 51.984], [-4.685, 51.968], [-4.678, 51.935],
             [-4.725, 51.918], [-4.805, 51.922], [-4.855, 51.942], [-4.858, 51.972],
         ],
+        "plainSummary": "Open moorland with public walking access and clear hilltop range for emergency radios.",
         "metric": "CRoW Act 2000 Statutory Access | West Wales Upland Corridor",
         "action": "Open moorland ridge corridor with long-range VHF line-of-sight.",
     },
@@ -363,44 +394,50 @@ VERIFIED_CROW_ACCESS_LAND: List[Dict[str, Any]] = [
 VERIFIED_DEFRA_AURN_STATIONS: List[Dict[str, Any]] = [
     {
         "id": "AURN_PORT_TALBOT",
-        "name": "DEFRA AURN Sensor: Port Talbot Margam (PM2.5 / PM10)",
+        "name": "Port Talbot Air Quality & Smoke Sensor",
         "coords": [-3.7708, 51.5839],
-        "metric": "Live AURN Telemetry | Industrial & Smoke Plume Monitor",
+        "plainSummary": "Government air monitor tracking industrial fumes and wildfire smoke levels.",
+        "metric": "Live UK-AIR AURN Telemetry | PM2.5 & PM10 Particulates",
         "action": "Monitors steelworks, M4 corridor, and Afan valley wildfire smoke particulates.",
     },
     {
         "id": "AURN_CARDIFF",
-        "name": "DEFRA AURN Sensor: Cardiff Centre (PM2.5 / NO2 / O3)",
+        "name": "Cardiff Centre Air Quality & Smoke Sensor",
         "coords": [-3.1763, 51.4818],
-        "metric": "Live AURN Telemetry | Urban Particulate & Inversion Node",
+        "plainSummary": "Government air monitor tracking city pollution and drifting wildfire smoke.",
+        "metric": "Live UK-AIR AURN Telemetry | PM2.5 / NO2 / O3",
         "action": "Tracks South-East Wales urban air quality and Bristol Channel smoke drift.",
     },
     {
         "id": "AURN_SWANSEA",
-        "name": "DEFRA AURN Sensor: Swansea Roadside (PM2.5 / PM10)",
+        "name": "Swansea Valley Air Quality & Smoke Sensor",
         "coords": [-3.9474, 51.6326],
-        "metric": "Live AURN Telemetry | Tawe Valley Inversion Monitor",
+        "plainSummary": "Government air monitor tracking trapped valley smoke and winter smog.",
+        "metric": "Live UK-AIR AURN Telemetry | PM2.5 & PM10 Particulates",
         "action": "Monitors particulate trapping during winter anticyclonic temperature inversions.",
     },
     {
         "id": "AURN_WREXHAM",
-        "name": "DEFRA AURN Sensor: Wrexham (PM2.5 / PM10)",
+        "name": "Wrexham Air Quality & Smoke Sensor",
         "coords": [-2.9912, 53.0422],
-        "metric": "Live AURN Telemetry | North-East Wales Industrial/Moorland Node",
+        "plainSummary": "Government air monitor tracking North-East Wales industrial fumes and moorland wildfire smoke.",
+        "metric": "Live UK-AIR AURN Telemetry | PM2.5 & PM10 Particulates",
         "action": "Detects Dee Valley inversions and Ruabon/Llantysilio moorland wildfire smoke.",
     },
     {
         "id": "AURN_ASTON_HILL",
-        "name": "DEFRA AURN Sensor: Aston Hill Rural Background (Powys)",
+        "name": "Aston Hill Rural Air Quality Sensor (Powys)",
         "coords": [-3.0341, 52.5038],
-        "metric": "Live AURN Telemetry | Mid-Wales Elevated Baseline",
+        "plainSummary": "Hilltop air monitor tracking regional smoke clouds drifting across Mid Wales.",
+        "metric": "Live UK-AIR AURN Telemetry | Rural Background PM2.5 / O3",
         "action": "High-elevation rural particulate and ozone sensor tracking regional plume transport.",
     },
     {
         "id": "AURN_NARBERTH",
-        "name": "DEFRA AURN Sensor: Narberth Rural Background (Pembrokeshire)",
+        "name": "Narberth Rural Air Quality Sensor (Pembrokeshire)",
         "coords": [-4.6915, 51.7818],
-        "metric": "Live AURN Telemetry | West Wales Maritime Air Monitor",
+        "plainSummary": "West Wales air monitor tracking coastal wind and Milford Haven industrial air.",
+        "metric": "Live UK-AIR AURN Telemetry | Maritime Background PM2.5",
         "action": "Monitors Atlantic inflow and Milford Haven industrial corridor downwind particulates.",
     },
 ]
@@ -409,316 +446,374 @@ VERIFIED_DEFRA_AURN_STATIONS: List[Dict[str, Any]] = [
 VERIFIED_RESUPPLY_AND_MEDICAL: List[Dict[str, Any]] = [
     {
         "id": "RESUPPLY_BGS_LLANBERIS",
-        "name": "Llanberis Pass Bedrock Spring (BGS)",
+        "name": "Llanberis Pass Natural Mountain Spring",
         "coords": [-4.0550, 53.0950],
         "category": "resupply",
-        "categoryLabel": "NATURAL SPRING",
+        "plainBadge": "NATURAL WATER SPRING",
+        "categoryLabel": "BGS BEDROCK WATER SPRING",
         "accentColor": "#00E5FF",
-        "metric": "Gravity Spring | ~18 L/min | Ordovician Rhyolite",
+        "plainSummary": "Clean mountain spring water flowing from rock. Filter or boil for 1 minute before drinking.",
+        "metric": "Flow: ~18 L/min | Gravity Head | Ordovician Rhyolite Bedrock",
         "action": "Filter with 0.1-micron pump or boil 60s before container storage.",
     },
     {
         "id": "RESUPPLY_BGS_CAPEL",
-        "name": "Capel Curig Aquifer Spring Line (BGS)",
+        "name": "Capel Curig Natural Spring Line",
         "coords": [-3.9082, 53.0931],
         "category": "resupply",
-        "categoryLabel": "NATURAL SPRING",
+        "plainBadge": "NATURAL WATER SPRING",
+        "categoryLabel": "BGS BEDROCK WATER SPRING",
         "accentColor": "#00E5FF",
-        "metric": "Gravity Spring | ~14 L/min | Continuous Flow",
+        "plainSummary": "Year-round natural spring water. Collect straight from the rock and boil or filter.",
+        "metric": "Flow: ~14 L/min | Continuous Groundwater Discharge",
         "action": "Collect directly from bedrock fissure; boil 60s if drawn downstream.",
     },
     {
         "id": "RESUPPLY_BGS_BRECON",
-        "name": "Ffynnon Las / Storey Arms Spring Head",
+        "name": "Storey Arms / Ffynnon Las Mountain Spring",
         "coords": [-3.4735, 51.8842],
         "category": "resupply",
-        "categoryLabel": "NATURAL SPRING",
+        "plainBadge": "NATURAL WATER SPRING",
+        "categoryLabel": "BGS BEDROCK WATER SPRING",
         "accentColor": "#00E5FF",
-        "metric": "Gravity Spring | Old Red Sandstone Aquifer",
+        "plainSummary": "High-ground natural spring near Pen y Fan. Filter or boil for 1 minute before drinking.",
+        "metric": "High-Elevation Spring | Old Red Sandstone Aquifer",
         "action": "High-elevation spring line. Filter or boil 60s.",
     },
     {
         "id": "RESUPPLY_BGS_PRESELI",
-        "name": "Ffynnon Taf / Preseli Ridge Spring",
+        "name": "Preseli Ridge Natural Spring",
         "coords": [-4.7420, 51.9585],
         "category": "resupply",
-        "categoryLabel": "NATURAL SPRING",
+        "plainBadge": "NATURAL WATER SPRING",
+        "categoryLabel": "BGS BEDROCK WATER SPRING",
         "accentColor": "#00E5FF",
-        "metric": "Gravity Spring | ~12 L/min | Igneous Outcrop",
+        "plainSummary": "Natural upland spring water in West Wales. Boil or filter before storing.",
+        "metric": "Flow: ~12 L/min | Upland Igneous Outcrop",
         "action": "Filtered upland discharge. Boil 60s or filter prior to storage.",
     },
     {
         "id": "MEDICAL_MIU_DOLGELLAU",
-        "name": "Dolgellau & Barmouth Minor Injury Unit",
+        "name": "Dolgellau Minor Injury & Trauma Clinic",
         "coords": [-3.8845, 52.7428],
         "category": "medical",
-        "categoryLabel": "MINOR INJURY TRAUMA UNIT",
+        "plainBadge": "URGENT INJURY CLINIC",
+        "categoryLabel": "NHS WALES MINOR INJURY UNIT",
         "accentColor": "#10B981",
-        "metric": "NHS Wales MIU & Public AED",
+        "plainSummary": "NHS clinic for cuts, broken bones, burns, and emergency heart defibrillation.",
+        "metric": "NHS Wales MIU & Public Access AED",
         "action": "Urgent limb trauma, suturing, and emergency defibrillation.",
     },
     {
         "id": "MEDICAL_MIU_LLANDRINDOD",
-        "name": "Llandrindod Wells War Memorial MIU",
+        "name": "Llandrindod Wells Minor Injury Clinic",
         "coords": [-3.3765, 52.2415],
         "category": "medical",
-        "categoryLabel": "MINOR INJURY TRAUMA UNIT",
+        "plainBadge": "URGENT INJURY CLINIC",
+        "categoryLabel": "NHS WALES MINOR INJURY UNIT",
         "accentColor": "#10B981",
+        "plainSummary": "Central Mid-Wales NHS urgent care clinic for injuries and emergency stabilization.",
         "metric": "NHS Wales MIU & Emergency Trauma",
         "action": "Mid Wales central trauma & stabilization unit.",
     },
     {
         "id": "MEDICAL_MIU_TENBY",
-        "name": "Tenby Cottage Hospital Walk-In & Trauma",
+        "name": "Tenby Walk-In Injury & Trauma Clinic",
         "coords": [-4.7062, 51.6725],
         "category": "medical",
-        "categoryLabel": "MINOR INJURY TRAUMA UNIT",
+        "plainBadge": "URGENT INJURY CLINIC",
+        "categoryLabel": "NHS WALES MINOR INJURY UNIT",
         "accentColor": "#10B981",
+        "plainSummary": "South Pembrokeshire NHS walk-in injury clinic and emergency defibrillator.",
         "metric": "NHS Wales Community Trauma & AED",
         "action": "South Pembrokeshire urgent care and defibrillation point.",
     },
     {
         "id": "MEDICAL_AED_PENYPASS",
-        "name": "Pen-y-Pass Warden Base Trauma & AED",
+        "name": "Pen-y-Pass Defibrillator & Bleed Kit",
         "coords": [-4.0205, 53.0801],
         "category": "medical",
-        "categoryLabel": "DEFIBRILLATOR / BLEED KIT",
+        "plainBadge": "DEFIBRILLATOR & BLEED KIT",
+        "categoryLabel": "24/7 PUBLIC AED & TRAUMA KIT",
         "accentColor": "#10B981",
+        "plainSummary": "24/7 emergency heart shock box and heavy bleeding kit on the warden building wall.",
         "metric": "24/7 Heated External AED & Bleed Kit",
         "action": "Call 999 for cabinet keypad access.",
     },
     {
         "id": "BASELINE_TW_MENAI",
-        "name": "Traffic Wales A55 / Britannia Bridge Camera",
+        "name": "Britannia Bridge Highway Camera (A55)",
         "coords": [-4.1852, 53.2165],
         "category": "baseline",
-        "categoryLabel": "PUBLIC SURVEILLANCE (CCTV)",
+        "plainBadge": "PUBLIC TRAFFIC CAMERA",
+        "categoryLabel": "TRAFFIC WALES SURVEILLANCE",
         "accentColor": "#94A3B8",
+        "plainSummary": "Public Traffic Wales road camera monitoring the main bridge onto Anglesey.",
         "metric": "Type: Traffic Wales Highway Telemetry",
         "action": "Public highway monitoring point on Menai Strait crossing.",
     },
     {
         "id": "BASELINE_TW_SEVERN",
-        "name": "Traffic Wales M4 Prince of Wales Bridge West",
+        "name": "Prince of Wales Bridge Camera (M4)",
         "coords": [-2.7085, 51.5772],
         "category": "baseline",
-        "categoryLabel": "PUBLIC SURVEILLANCE (CCTV)",
+        "plainBadge": "PUBLIC TRAFFIC CAMERA",
+        "categoryLabel": "TRAFFIC WALES SURVEILLANCE",
         "accentColor": "#94A3B8",
+        "plainSummary": "Public Traffic Wales road camera monitoring the main M4 Severn crossing.",
         "metric": "Type: Traffic Wales Strategic Crossing Camera",
         "action": "Monitors primary South Wales M4 arterial river crossing.",
     },
 ]
 
-# Statutory NRW River Telemetry Stations across all major Welsh spate basins
+# Statutory NRW River Telemetry Stations
 VERIFIED_NRW_GAUGES: List[Dict[str, Any]] = [
     {
         "id": "NRW_GAUGE_GLASLYN",
-        "name": "NRW Gauge: River Glaslyn at Beddgelert",
+        "name": "River Glaslyn Flood Gauge (Beddgelert)",
         "coords": [-4.1025, 53.0110],
+        "plainSummary": "Tracks river rise from Snowdon. When high, the A498 valley road floods quickly.",
         "metric": "Alert Stage: 1.65m | Severe Flood: 2.10m | Basin: Eryri South",
         "action": "Monitors Yr Wyddfa southern runoff. Above 1.65m, A498 Aberglaslyn Pass floods; divert via A4085.",
     },
     {
         "id": "NRW_GAUGE_OGWEN",
-        "name": "NRW Gauge: Afon Ogwen at Bethesda",
+        "name": "River Ogwen Flood Gauge (Bethesda)",
         "coords": [-4.0615, 53.1802],
+        "plainSummary": "Tracks fast mountain runoff that can flood the A5 valley road and bridge.",
         "metric": "Alert Stage: 1.80m | Severe Flood: 2.40m | Basin: Ogwen",
         "action": "Steep Glyderau/Carneddau catchment; rapid spate surge threatens A5 valley bridge.",
     },
     {
         "id": "NRW_GAUGE_CONWY",
-        "name": "NRW Gauge: River Conwy at Llanrwst (Pont Fawr)",
+        "name": "River Conwy Flood Gauge (Llanrwst)",
         "coords": [-3.7960, 53.1385],
+        "plainSummary": "Tracks fast river flooding at Pont Fawr bridge. Use the higher A470 road in heavy rain.",
         "metric": "Alert Stage: 2.40m | Bridge Overtop: 3.10m | Basin: Conwy",
         "action": "Fast-responding Carneddau spate river. Pont Fawr closes early; use eastern A470 high corridor.",
     },
     {
         "id": "NRW_GAUGE_CLWYD",
-        "name": "NRW Gauge: River Clwyd at St Asaph",
+        "name": "River Clwyd Flood Gauge (St Asaph)",
         "coords": [-3.4435, 53.2578],
+        "plainSummary": "Tracks river surge at St Asaph bridge that can flood A525 and A55 slip roads.",
         "metric": "Alert Stage: 2.20m | Severe Flood: 2.95m | Basin: Clwyd",
         "action": "Flash-flood constriction at Spring Gardens bridge; impacts A525 and A55 slip approaches.",
     },
     {
         "id": "NRW_GAUGE_DEE",
-        "name": "NRW Gauge: River Dee at Bala / Llyn Tegid Outflow",
+        "name": "River Dee Flood Gauge (Bala / Llyn Tegid)",
         "coords": [-3.5885, 52.9092],
+        "plainSummary": "Monitors lake outflow flooding the Dee valley toward Corwen and Llangollen.",
         "metric": "Alert Stage: 1.95m | Floodplain Spill: 2.50m | Basin: Upper Dee",
         "action": "Controls Dee valley inundation downstream toward Corwen and Llangollen.",
     },
     {
         "id": "NRW_GAUGE_MAWDDACH",
-        "name": "NRW Gauge: Afon Mawddach at Ganllwyd",
+        "name": "River Mawddach Flood Gauge (Ganllwyd)",
         "coords": [-3.8892, 52.8015],
+        "plainSummary": "Tracks mountain river surge that can spill onto the A470 valley road.",
         "metric": "Alert Stage: 1.90m | A470 Encroachment: 2.45m | Basin: Mawddach",
         "action": "Drains Rhinogydd & Coed y Brenin; A470 valley gorge floods during prolonged orographic rain.",
     },
     {
         "id": "NRW_GAUGE_DYFI",
-        "name": "NRW Gauge: Afon Dyfi at Machynlleth Bridge",
+        "name": "River Dyfi Flood Gauge (Machynlleth Bridge)",
         "coords": [-3.8548, 52.5964],
+        "plainSummary": "High river water and high tide here can cut off the main A487 north-south bridge.",
         "metric": "Alert Stage: 2.80m | A487 Cut-Off: 3.40m | Basin: Dyfi",
         "action": "Single-corridor A487 north-south artery severs when tidal surge meets spate discharge.",
     },
     {
         "id": "NRW_GAUGE_YSTWYTH",
-        "name": "NRW Gauge: Afon Ystwyth at Llanilar",
+        "name": "River Ystwyth Flood Gauge (Llanilar)",
         "coords": [-4.0165, 52.3562],
+        "plainSummary": "Tracks fast hill runoff that can flood low B4575 river bridges near Aberystwyth.",
         "metric": "Alert Stage: 2.05m | Severe Flood: 2.70m | Basin: Ystwyth",
         "action": "Plynlimon runoff corridor; B4575 valley crossings submerge rapidly.",
     },
     {
         "id": "NRW_GAUGE_WYE_RHAYADER",
-        "name": "NRW Gauge: River Wye at Rhayader",
+        "name": "River Wye Flood Gauge (Rhayader)",
         "coords": [-3.5132, 52.3018],
+        "plainSummary": "Tracks river surge from the Elan hills along the central A470 corridor.",
         "metric": "Alert Stage: 2.10m | Severe Flood: 2.80m | Basin: Upper Wye",
         "action": "Monitors Elan Valley & Cambrian runoff along the central A470 trunk corridor.",
     },
     {
         "id": "NRW_GAUGE_TEIFI",
-        "name": "NRW Gauge: Afon Teifi at Lampeter",
+        "name": "River Teifi Flood Gauge (Lampeter)",
         "coords": [-4.0792, 52.1118],
+        "plainSummary": "Tracks valley flooding across low A482 and A475 river crossings.",
         "metric": "Alert Stage: 2.15m | Severe Flood: 2.85m | Basin: Teifi",
         "action": "Low-lying valley floor inundation risk across A482/A475 river crossings.",
     },
     {
         "id": "NRW_GAUGE_CLEDDAU",
-        "name": "NRW Gauge: Western Cleddau at Haverfordwest",
+        "name": "Western Cleddau Flood Gauge (Haverfordwest)",
         "coords": [-4.9685, 51.8022],
+        "plainSummary": "High river water meeting spring tides can flood town quay roads and bridges.",
         "metric": "Alert Stage: 2.35m | Tidal Lock: 3.10m | Basin: Cleddau",
         "action": "Preseli runoff meets Milford Haven spring tide; town quay and A4076 bridges flood.",
     },
     {
         "id": "NRW_GAUGE_TYWI",
-        "name": "NRW Gauge: River Tywi at Carmarthen Quay",
+        "name": "River Tywi Flood Gauge (Carmarthen Quay)",
         "coords": [-4.3055, 51.8542],
+        "plainSummary": "Tracks deep river and tidal flooding across A40 and A484 valley approaches.",
         "metric": "Alert Stage: 3.20m | Tidal Lock: 4.10m | Basin: Tywi",
         "action": "Wide floodplain inundation across A40/A484 valley approaches during spring tides.",
     },
     {
         "id": "NRW_GAUGE_TAWE",
-        "name": "NRW Gauge: River Tawe at Pontardawe",
+        "name": "River Tawe Flood Gauge (Pontardawe)",
         "coords": [-3.8482, 51.7165],
+        "plainSummary": "Tracks fast river flooding along the A4067 Swansea Valley floor.",
         "metric": "Alert Stage: 2.25m | Severe Flood: 3.00m | Basin: Swansea Valley",
         "action": "Drains western Bannau Brycheiniog; A4067 Swansea Valley floor prone to flash inundation.",
     },
     {
         "id": "NRW_GAUGE_NEATH",
-        "name": "NRW Gauge: River Neath at Resolven",
+        "name": "River Neath Flood Gauge (Resolven)",
         "coords": [-3.7025, 51.7082],
+        "plainSummary": "Tracks waterfall valley runoff that can flood low A465 slip roads.",
         "metric": "Alert Stage: 2.45m | Severe Flood: 3.20m | Basin: Vale of Neath",
         "action": "Waterfall country spate discharge threatens A465 low-lying slip roads.",
     },
     {
         "id": "NRW_GAUGE_TAFF",
-        "name": "NRW Gauge: River Taff at Pontypridd",
+        "name": "River Taff Flood Gauge (Pontypridd)",
         "coords": [-3.3388, 51.6012],
+        "plainSummary": "Tracks fast, dangerous flash-flood surges where the Rhondda and Taff rivers meet.",
         "metric": "Alert Stage: 2.60m | Severe Flood: 3.50m | Basin: Taff / Rhondda",
         "action": "Confluence bottleneck for Rhondda and Taff valleys; severe urban flash-flood velocity.",
     },
     {
         "id": "NRW_GAUGE_ELY",
-        "name": "NRW Gauge: River Ely at St Fagans (Cardiff West)",
+        "name": "River Ely Flood Gauge (St Fagans / Cardiff)",
         "coords": [-3.2685, 51.4842],
+        "plainSummary": "Tracks river flooding across low west Cardiff roads and A4232 underpasses.",
         "metric": "Alert Stage: 2.15m | Severe Flood: 2.85m | Basin: Ely",
         "action": "Submerges western Cardiff low-lying crossings and A4232 approach culverts.",
     },
     {
         "id": "NRW_GAUGE_USK_BRECON",
-        "name": "NRW Gauge: River Usk at Brecon Bridge",
+        "name": "River Usk Flood Gauge (Brecon Bridge)",
         "coords": [-3.3935, 51.9478],
+        "plainSummary": "Tracks Brecon Beacons runoff that quickly floods low town bridges and riverside paths.",
         "metric": "Alert Stage: 2.30m | Severe Flood: 3.10m | Basin: Usk",
         "action": "Drains northern Bannau Brycheiniog; low town bridges and riverside roads flood rapidly.",
     },
     {
         "id": "NRW_GAUGE_USK_NEWPORT",
-        "name": "NRW Gauge: River Usk Tidal Barrier / Newport",
+        "name": "River Usk Tidal Barrier (Newport)",
         "coords": [-2.9925, 51.5865],
+        "plainSummary": "Tracks extreme Bristol Channel high tides meeting River Usk floodwater.",
         "metric": "Alert Stage: 6.80m AOD | Severe Surge: 7.50m AOD | Basin: Lower Usk",
         "action": "Extreme Bristol Channel tidal range coincides with Usk spate flow.",
     },
 ]
 
-# Objective Physical Terrain, Tidal Stranding & DfT STATS19 Road Defile Hazards
+# Objective Physical Terrain, Tidal Stranding & Road Defile Hazards
 VERIFIED_TERRAIN_AND_TIDAL_HAZARDS: List[Dict[str, Any]] = [
     {
         "id": "HAZ_TIDAL_TRAETH_LAFAN",
-        "name": "Traeth Lafan Tidal Stranding Zone (Llanfairfechan)",
+        "name": "Traeth Lafan Tidal Flats (Llanfairfechan)",
         "coords": [-4.0185, 53.2582],
+        "plainBadge": "FAST TIDE HAZARD",
         "label": "COASTAL TIDAL STRANDING HAZARD",
-        "metric": "Fast Incoming Tide (4+ knots) | W_flood +10.0",
+        "plainSummary": "Incoming tide fills deep channels behind you faster than walking pace. Check tide times.",
+        "metric": "Incoming Tide Velocity: 4+ knots | Routing Penalty: W_flood +10.0",
         "action": "Extensive mudflats flood rapidly from behind via deep channels. Never cross without tide tables.",
     },
     {
         "id": "HAZ_TERRAIN_A5_OGWEN",
-        "name": "A5 Ogwen Valley Rockfall & Ice Defile",
+        "name": "A5 Ogwen Valley Rockfall & Ice Gorge",
         "coords": [-4.0150, 53.1250],
+        "plainBadge": "ROCKFALL & ICE ROAD",
         "label": "DFT STATS19 & TERRAIN DEFILE",
-        "metric": "STATS19 Cluster | Gale Funnel & Black Ice | W_incident +4.0",
+        "plainSummary": "Narrow mountain gorge prone to falling rocks, fierce crosswinds, and winter black ice.",
+        "metric": "DfT STATS19 Cluster | Gale Funnel & Verglas | Penalty: W_incident +4.0",
         "action": "Sheer glaciated slabs above single-carriageway; severe crosswinds and winter verglas.",
     },
     {
         "id": "HAZ_TERRAIN_PENYPASS",
-        "name": "A4086 Pen-y-Pass High-Gradient Blackspot",
+        "name": "A4086 Pen-y-Pass Steep Mountain Road",
         "coords": [-4.0205, 53.0801],
+        "plainBadge": "DANGEROUS MOUNTAIN PASS",
         "label": "DFT STATS19 COLLISION DEFILE",
-        "metric": "1:8 Gradient | Blind Crests & Freezing Fog | W_incident +4.0",
+        "plainSummary": "Steep 1-in-8 mountain pass with blind crests, freezing fog, and frequent winter ice.",
+        "metric": "1:8 Gradient | Blind Crests & Freezing Fog | Penalty: W_incident +4.0",
         "action": "Impassable in freezing fog/snow; deploy high-visibility markers if evacuating on foot.",
     },
     {
         "id": "HAZ_TERRAIN_CRIMEA",
-        "name": "A470 Crimea Pass (Blaenau Ffestiniog Summit)",
+        "name": "A470 Crimea Pass (Blaenau Ffestiniog)",
         "coords": [-3.9145, 53.0122],
+        "plainBadge": "SNOW & WHITEOUT PASS",
         "label": "HIGH-ALTITUDE PASS EXPOSURE",
-        "metric": "Elevation: 385m | Snowdrift & Whiteout Corridor | W_incident +3.5",
+        "plainSummary": "High 385m pass that is often the first North Wales main road closed by snowdrifts.",
+        "metric": "Elevation: 385m | Snowdrift & Whiteout Corridor | Penalty: W_incident +3.5",
         "action": "Frequently first North Wales trunk pass closed by snowdrifts and freezing cloud.",
     },
     {
         "id": "HAZ_TERRAIN_BERWYN",
-        "name": "B4391 Milltir Cerrig Pass (Berwyn Mountains)",
+        "name": "B4391 Milltir Cerrig Pass (Berwyn Hills)",
         "coords": [-3.5415, 52.8625],
+        "plainBadge": "EXPOSED HIGH PASS",
         "label": "EXPOSED UPLAND DEFILE",
-        "metric": "Elevation: 486m | Zero Shelter & Deep Drifts | W_incident +3.5",
+        "plainSummary": "Isolated 486m moorland road with zero phone signal, no shelter, and deep snowdrifts.",
+        "metric": "Elevation: 486m | Zero Shelter & Deep Drifts | Penalty: W_incident +3.5",
         "action": "Remote high-moorland pass with zero cellular signal and rapid whiteout exposure.",
     },
     {
         "id": "HAZ_TIDAL_NEWGALE",
-        "name": "A487 Newgale Shingle Bank Storm Surge Zone",
+        "name": "A487 Newgale Beach Storm Surge Road",
         "coords": [-5.1265, 51.8522],
+        "plainBadge": "WAVE OVERTOPPING ROAD",
         "label": "COASTAL OVERTOPPING DEFILE",
-        "metric": "Spring Tide + SW Gale Overtopping | W_flood +10.0",
+        "plainSummary": "Storm waves throw heavy stones across this coastal road at high tide. Divert inland.",
+        "metric": "Spring Tide + SW Gale Overtopping | Penalty: W_flood +10.0",
         "action": "Storm waves hurl cobbles across A487 coastal causeway; divert inland via Roch/Camrose.",
     },
     {
         "id": "HAZ_TIDAL_CEFN_SIDAN",
-        "name": "Cefn Sidan / Tywi Estuary Quicksand & Tidal Bar",
+        "name": "Cefn Sidan Sandbar & Quicksand Hazard",
         "coords": [-4.3685, 51.7245],
+        "plainBadge": "QUICKSAND & FAST TIDE",
         "label": "COASTAL TIDAL STRANDING HAZARD",
-        "metric": "8-Mile Sandbar | Shifting Quicksand Channels | W_flood +10.0",
+        "plainSummary": "Shifting quicksand channels and fast incoming tides cut off outer sandbanks. Stay near dunes.",
+        "metric": "8-Mile Sandbar | Shifting Quicksand Channels | Penalty: W_flood +10.0",
         "action": "Rapid tidal cut-off across outer sandbanks; keep strictly above high-water dune line.",
     },
     {
         "id": "HAZ_TIDAL_WORMS_HEAD",
         "name": "Worm's Head Tidal Causeway (Rhossili)",
         "coords": [-4.3165, 51.5648],
+        "plainBadge": "TIDE CUT-OFF CAUSEWAY",
         "label": "COASTAL TIDAL CUT-OFF",
-        "metric": "Submerged 5 Hours Per Tide Cycle | W_flood +10.0",
+        "plainSummary": "Rocky crossing floods 2.5 hours before high tide and stays underwater for 5 hours.",
+        "metric": "Submerged 5 Hours Per Tide Cycle | Penalty: W_flood +10.0",
         "action": "Rocky causeway floods 2.5h before high water; stranding risk with severe Atlantic swell.",
     },
     {
         "id": "HAZ_TERRAIN_BLACK_MOUNTAIN",
-        "name": "A4069 Black Mountain Pass (Hairpin Exposure)",
+        "name": "A4069 Black Mountain Hairpin Pass",
         "coords": [-3.8165, 51.8325],
+        "plainBadge": "STEEP HAIRPIN PASS",
         "label": "DFT STATS19 & EXPOSURE DEFILE",
-        "metric": "Elevation: 493m | Sheer Drop-Offs & Ice | W_incident +4.0",
+        "plainSummary": "Exposed 493m mountain road with sharp hairpins, sheer drops, and severe ice/mist.",
+        "metric": "Elevation: 493m | Sheer Drop-Offs & Ice | Penalty: W_incident +4.0",
         "action": "Exposed hairpin mountain road linking Brynaman and Llangadog; hazardous in mist/ice.",
     },
     {
         "id": "HAZ_TIDAL_SULLY",
-        "name": "Sully Island Tidal Causeway (Vale of Glamorgan)",
+        "name": "Sully Island Tidal Causeway",
         "coords": [-3.1955, 51.3965],
+        "plainBadge": "FAST TIDE CAUSEWAY",
         "label": "COASTAL TIDAL STRANDING HAZARD",
-        "metric": "Bristol Channel 12m Tidal Surge | W_flood +10.0",
+        "plainSummary": "Massive 12m Bristol Channel tides flood this causeway very rapidly. Check tide times.",
+        "metric": "Bristol Channel 12m Tidal Surge | Penalty: W_flood +10.0",
         "action": "Second-highest tidal range in the world; causeway floods violently on incoming tide.",
     },
 ]
@@ -727,42 +822,47 @@ VERIFIED_TERRAIN_AND_TIDAL_HAZARDS: List[Dict[str, Any]] = [
 VERIFIED_COMAH_SITES: List[Dict[str, Any]] = [
     {
         "id": "COMAH_PEMBROKE",
-        "name": "HSE COMAH Zone: Milford Haven / Pembroke Refinery",
+        "name": "Milford Haven / Pembroke Refinery Safety Zone",
         "coords": [-5.0195, 51.6895],
         "radius_m": 1200,
-        "metric": "Upper-Tier COMAH | Exclusion Buffer: 1,200m | W_comah +8.0",
+        "plainSummary": "Major fuel & chemical storage site. Keep 1.2 km upwind if an industrial alarm sounds.",
+        "metric": "Upper-Tier HSE COMAH | Exclusion Buffer: 1,200m | Penalty: W_comah +8.0",
         "action": "Major hydrocarbon storage & refining facility. Maintain 1.2km upwind clearance during industrial alarms.",
     },
     {
         "id": "COMAH_BARRY",
-        "name": "HSE COMAH Zone: Barry Docks Chemical Complex",
+        "name": "Barry Docks Chemical Plant Safety Zone",
         "coords": [-3.2535, 51.3995],
         "radius_m": 900,
-        "metric": "Upper-Tier COMAH | Exclusion Buffer: 900m | W_comah +8.0",
+        "plainSummary": "Major chemical site. Stay indoors with windows shut or move cross-wind during alerts.",
+        "metric": "Upper-Tier HSE COMAH | Exclusion Buffer: 900m | Penalty: W_comah +8.0",
         "action": "Silicone & specialty chemical installations. Shelter indoors or evacuate cross-wind if vapour release occurs.",
     },
     {
         "id": "COMAH_BAGLAN",
-        "name": "HSE COMAH Zone: Baglan Bay / Port Talbot Industrial Corridor",
+        "name": "Baglan Bay & Port Talbot Industrial Safety Zone",
         "coords": [-3.8165, 51.6085],
         "radius_m": 1000,
-        "metric": "Upper-Tier COMAH | Exclusion Buffer: 1,000m | W_comah +8.0",
+        "plainSummary": "Heavy industrial and gas storage corridor by the M4. Divert inland during chemical alerts.",
+        "metric": "Upper-Tier HSE COMAH | Exclusion Buffer: 1,000m | Penalty: W_comah +8.0",
         "action": "Heavy industrial & energy storage corridor adjacent to M4. Divert inland during hazmat incidents.",
     },
     {
         "id": "COMAH_DEESIDE",
-        "name": "HSE COMAH Zone: Deeside / Shotton Industrial & Gas Terminal",
+        "name": "Deeside & Shotton Power / Gas Safety Zone",
         "coords": [-3.0465, 53.2185],
         "radius_m": 850,
-        "metric": "Upper-Tier COMAH | Exclusion Buffer: 850m | W_comah +8.0",
+        "plainSummary": "Power station and industrial chemical zone on the Dee estuary. Maintain perimeter clearance.",
+        "metric": "Upper-Tier HSE COMAH | Exclusion Buffer: 850m | Penalty: W_comah +8.0",
         "action": "Combined cycle power & chemical manufacturing zone on Dee estuary.",
     },
     {
         "id": "COMAH_WREXHAM",
-        "name": "HSE COMAH Zone: Wrexham Industrial Estate Hazmat Sector",
+        "name": "Wrexham Industrial Estate Hazmat Buffer",
         "coords": [-2.9195, 53.0355],
         "radius_m": 750,
-        "metric": "Lower-Tier COMAH | Exclusion Buffer: 750m | W_comah +8.0",
+        "plainSummary": "Industrial chemical storage zone. Avoid area if fire or vapour sirens sound.",
+        "metric": "Lower-Tier HSE COMAH | Exclusion Buffer: 750m | Penalty: W_comah +8.0",
         "action": "Industrial chemical & manufacturing storage buffer. Maintain perimeter clearance.",
     },
 ]
@@ -771,10 +871,11 @@ VERIFIED_COMAH_SITES: List[Dict[str, Any]] = [
 VERIFIED_FLOOD_CORRIDORS: List[Dict[str, Any]] = [
     {
         "id": "HAZ_FLOOD_LLYN_PERIS",
-        "name": "Llyn Peris / A4086 Hydrological & Cordon Buffer",
+        "name": "Llyn Peris & A4086 Valley Flood Zone",
         "line": [[-4.1440, 53.1350], [-4.1280, 53.1230], [-4.1160, 53.1110]],
         "buffer_m": 320,
-        "metric": "W_flood +10.0 | Valley Inundation & Infrastructure Cordon",
+        "plainSummary": "Low valley flood and power-surge zone. Climb onto higher ground above Llanberis via Waunfawr.",
+        "metric": "Civil Protection Corridor | Routing Penalty: W_flood +10.0",
         "action": "High-voltage surge & reservoir tailrace overflow corridor. Divert above 150m contour via Waunfawr.",
     },
     {
@@ -782,31 +883,35 @@ VERIFIED_FLOOD_CORRIDORS: List[Dict[str, Any]] = [
         "name": "Conwy Valley Floodplain (Llanrwst to Trefriw)",
         "line": [[-3.8150, 53.1750], [-3.8020, 53.1520], [-3.7950, 53.1340], [-3.7850, 53.1120]],
         "buffer_m": 450,
-        "metric": "1-in-30-Yr Flood Zone 3 | W_flood +10.0",
+        "plainSummary": "Valley floor and B5106 flood fast during heavy rain. Use the higher A470 on the east side.",
+        "metric": "NRW 1-in-30-Yr Flood Zone 3 | Routing Penalty: W_flood +10.0",
         "action": "B5106 & valley floor submerge rapidly during Carneddau storms. Use elevated eastern A470.",
     },
     {
         "id": "HAZ_FLOOD_ABERGLASLYN",
-        "name": "Afon Glaslyn / Beddgelert Flood Corridor",
+        "name": "Afon Glaslyn Gorge Flood Zone (Beddgelert)",
         "line": [[-4.1060, 53.0160], [-4.1010, 53.0050], [-4.1080, 52.9880]],
         "buffer_m": 280,
-        "metric": "1-in-30-Yr Flood Zone 3 | W_flood +10.0",
+        "plainSummary": "Narrow river gorge on the A498 prone to flash flooding and falling rocks in storms.",
+        "metric": "NRW 1-in-30-Yr Flood Zone 3 | Routing Penalty: W_flood +10.0",
         "action": "Narrow gorge bottleneck on A498. Prone to flash river overtopping and rockfall.",
     },
     {
         "id": "HAZ_FLOOD_DYFI_ESTUARY",
-        "name": "Afon Dyfi Floodplain (Machynlleth Crossing)",
+        "name": "Afon Dyfi Floodplain (Machynlleth)",
         "line": [[-3.8850, 52.5920], [-3.8540, 52.5970], [-3.8220, 52.6040]],
         "buffer_m": 500,
-        "metric": "1-in-30-Yr Tidal/Fluvial Zone | W_flood +10.0",
+        "plainSummary": "A487 bridge approaches flood when high tides meet heavy mountain rain.",
+        "metric": "NRW 1-in-30-Yr Tidal/Fluvial Zone | Routing Penalty: W_flood +10.0",
         "action": "A487 bridge approaches flood during combined high tide and mountain runoff.",
     },
     {
         "id": "HAZ_FLOOD_TAFF_RHONDDA",
-        "name": "Taff & Rhondda Confluence Flood Corridor (Pontypridd)",
+        "name": "Pontypridd Taff & Rhondda Flood Zone",
         "line": [[-3.3680, 51.6150], [-3.3390, 51.6010], [-3.3210, 51.5820]],
         "buffer_m": 380,
-        "metric": "1-in-30-Yr Spate Flood Zone | W_flood +10.0",
+        "plainSummary": "Steep valleys funnel fast, deep floodwater onto town roads and the A470 floor.",
+        "metric": "NRW 1-in-30-Yr Spate Flood Zone | Routing Penalty: W_flood +10.0",
         "action": "Steep valley walls funnel high-velocity water onto A470/A4058 valley floor.",
     },
     {
@@ -814,7 +919,8 @@ VERIFIED_FLOOD_CORRIDORS: List[Dict[str, Any]] = [
         "name": "Lower Tywi Floodplain (Llandeilo to Carmarthen)",
         "line": [[-4.3100, 51.8520], [-4.1850, 51.8640], [-4.0120, 51.8810]],
         "buffer_m": 550,
-        "metric": "1-in-30-Yr Flood Zone 3 | W_flood +10.0",
+        "plainSummary": "Wide river valley prone to deep flooding. Keep to the higher A40 ridge road.",
+        "metric": "NRW 1-in-30-Yr Flood Zone 3 | Routing Penalty: W_flood +10.0",
         "action": "Extensive agricultural & road plain inundation. Maintain route along elevated A40 ridge.",
     },
 ]
@@ -844,14 +950,11 @@ def make_three_ring_cloud_polygons(
       1. `core` (exact physical boundary)
       2. `mid`  (soft intermediate plume)
       3. `halo` (outer vaporous fade)
-    Morphological rounding (`morph_smooth_m > 0`) eliminates any sharp polygon corners
-    so every zone renders as an organic, amorphous cloud locked to true ground scale.
     """
     gdf = gpd.GeoDataFrame([{"geometry": geom_wgs84}], crs="EPSG:4326").to_crs(epsg=27700)
     raw_bng = gdf.geometry.iloc[0]
 
     if morph_smooth_m > 0:
-        # Round-cap morphological closing & opening eliminates sharp angles organically
         raw_bng = raw_bng.buffer(morph_smooth_m, cap_style="round", join_style="round").buffer(
             -morph_smooth_m * 0.85, cap_style="round", join_style="round"
         )
@@ -933,29 +1036,35 @@ def classify_emf_buffer(voltage_v: Optional[int]) -> Optional[Tuple[int, str]]:
 def build_point_feature(
     raw_id: str, lon: float, lat: float, tags: Dict[str, Any]
 ) -> Optional[Dict[str, Any]]:
-    """Normalize a raw OSM Point/Way-Center element into Datum Zero's canonical schema."""
+    """Normalize a raw OSM Point/Way-Center element with both plain-English and technical tiers."""
     if tags.get("natural") == "spring":
         category = "resupply"
         accent = "#00E5FF"
-        label = "NATURAL SPRING"
-        default_name = "Potable Bedrock Spring"
-        metric = "Gravity Spring"
-        action = "Filter with 0.1-micron pump or boil 60s."
+        plain_badge = "NATURAL WATER SPRING"
+        label = "OSM HYDROLOGY / NATURAL SPRING"
+        default_name = "Natural Mountain Spring"
+        plain_summary = "Natural groundwater spring. Filter or boil for 1 minute before drinking."
+        metric = "Gravity Spring Discharge | OSM natural=spring"
+        action = "Filter with 0.1-micron pump or boil at a rolling boil for 60s."
         weight = 0.0
     elif tags.get("emergency") == "defibrillator":
         category = "medical"
         accent = "#10B981"
-        label = "DEFIBRILLATOR / BLEED KIT"
-        default_name = "Public Access AED"
-        metric = "Emergency Bleed / Shock Kit"
-        action = "Call 999 for cabinet keypad access."
+        plain_badge = "DEFIBRILLATOR (AED)"
+        label = "PUBLIC ACCESS DEFIBRILLATOR"
+        default_name = "Public Heart Defibrillator (AED)"
+        plain_summary = "Emergency heart shock kit. Call 999 for the cabinet keypad code."
+        metric = "Public Access AED | OSM emergency=defibrillator"
+        action = "Call 999 for cabinet keypad access; follow audio voice prompts on unit."
         weight = 0.0
     elif tags.get("man_made") == "surveillance":
         category = "baseline"
         accent = "#94A3B8"
+        plain_badge = "PUBLIC CCTV CAMERA"
         label = "PUBLIC SURVEILLANCE (CCTV)"
-        default_name = "Municipal / Traffic Camera"
-        metric = f"Type: {tags.get('surveillance:type', 'Traffic / Public')}"
+        default_name = "Public / Traffic Camera"
+        plain_summary = "Public highway or town security camera."
+        metric = f"Surveillance Type: {tags.get('surveillance:type', 'Traffic / Public')}"
         action = "Public right-of-way camera installation."
         weight = 0.0
     elif tags.get("ford") == "yes":
@@ -964,9 +1073,11 @@ def build_point_feature(
             return None
         category = "hazards"
         accent = "#FF3B30"
+        plain_badge = "FLOODING RIVER CROSSING"
         label = "VEHICULAR RIVER FORD"
-        default_name = "Low-Water Road River Ford"
-        metric = "Flood Cut-Off Risk | W_flood +10.0"
+        default_name = "Low-Water River Ford"
+        plain_summary = "Road crosses directly through a river. Dangerous and impassable after heavy rain."
+        metric = "Unmonitored Ford Crossing | Routing Penalty: W_flood +10.0"
         action = "Impassable during heavy rain/spate discharge. Verify water depth before crossing."
         weight = 10.0
     else:
@@ -982,6 +1093,8 @@ def build_point_feature(
             "id": f"{category.upper()}_{raw_id}",
             "name": tags.get("name", default_name),
             "category": category,
+            "plainBadge": plain_badge,
+            "plainSummary": plain_summary,
             "categoryLabel": label,
             "accentColor": accent,
             "threatWeight": weight,
@@ -995,7 +1108,7 @@ def query_overpass_fast(
     query: str, label: str, mirror_offset: int = 0
 ) -> Optional[Dict[str, Any]]:
     """Execute an Overpass query with round-robin mirror rotation and rate-limit backoff."""
-    headers = {"User-Agent": "DatumZero-ETL/4.1 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/4.2 (Civil Resilience Pipeline)"}
     n = len(OVERPASS_MIRRORS)
     ordered_mirrors = [OVERPASS_MIRRORS[(mirror_offset + i) % n] for i in range(n)]
 
@@ -1126,14 +1239,16 @@ def generate_emf_corridor_polygons(
                     "geometry": g_dict,
                     "properties": {
                         "id": f"EMF_CORRIDOR_{buf_m}M{id_suffix}",
-                        "name": f"{tier} 50Hz EMF Corridor",
+                        "name": f"{tier} Overhead Power Line Zone",
                         "category": "grid_down",
+                        "plainBadge": "HIGH-VOLTAGE POWER LINE",
+                        "plainSummary": f"High-voltage pylons ({buf_m}m safety zone). Can throw off compasses and drop wires in gales.",
                         "categoryLabel": "HIGH-VOLTAGE EMF BUFFER",
                         "accentColor": "#FFB800",
                         "threatWeight": 2.0,
                         "cloudRing": ring_name,
-                        "primaryMetric": f"True Ground Buffer: {buf_m}m | Compass & RF Interference",
-                        "operationalAction": "Expect magnetometer deviation and storm line-drop hazard. Maintain clearance.",
+                        "primaryMetric": f"Biot-Savart 50Hz Exclusion: {buf_m}m | Magnetometer & RF Interference",
+                        "operationalAction": "Expect compass deviation and storm line-drop hazard. Maintain clearance.",
                     },
                 }
             )
@@ -1165,12 +1280,14 @@ def generate_bridge_choke_polygons(
     for idx in range(len(core_wgs)):
         base_props: Dict[str, Any] = {
             "id": f"HAZ_CHOKE_BRIDGE_{idx}",
-            "name": "Strategic Trunk Bridge Choke Point",
+            "name": "Main Road Bridge Bottleneck",
             "category": "hazards",
+            "plainBadge": "BRIDGE BOTTLENECK",
+            "plainSummary": "Key single-route bridge crossing that easily jams or closes during floods and emergencies.",
             "categoryLabel": "SINGLE-ACCESS BRIDGE DEFILE",
             "accentColor": "#FFB800",
             "threatWeight": 5.0,
-            "primaryMetric": "Survival Penalty: W_choke +5.0 | 160m Corridor Buffer",
+            "primaryMetric": "160m Corridor Defile | Routing Penalty: W_choke +5.0",
             "operationalAction": "Primary river/valley crossing bottleneck. Vulnerable to flood debris, closure, or gridlock.",
         }
 
@@ -1201,6 +1318,8 @@ def harvest_datamapwales_wfs_layer(
     id_prefix: str,
     name_default: str,
     category: str,
+    plain_badge: str,
+    plain_summary: str,
     category_label: str,
     accent_color: str,
     threat_weight: float,
@@ -1218,7 +1337,7 @@ def harvest_datamapwales_wfs_layer(
         "srsName": "EPSG:4326",
         "count": str(max_count),
     }
-    headers = {"User-Agent": "DatumZero-ETL/4.1 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/4.2 (Civil Resilience Pipeline)"}
     features: List[Dict[str, Any]] = []
 
     try:
@@ -1246,6 +1365,8 @@ def harvest_datamapwales_wfs_layer(
                     "id": f"{id_prefix}_{idx}",
                     "name": str(raw_name),
                     "category": category,
+                    "plainBadge": plain_badge,
+                    "plainSummary": plain_summary,
                     "categoryLabel": category_label,
                     "accentColor": accent_color,
                     "threatWeight": threat_weight,
@@ -1273,7 +1394,7 @@ def harvest_datamapwales_wfs_layer(
 def harvest_defra_aurn_telemetry() -> List[Dict[str, Any]]:
     """Poll DEFRA UK-AIR SOS API for live Welsh particulate station status."""
     live_labels: Dict[str, str] = {}
-    headers = {"User-Agent": "DatumZero-ETL/4.1 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/4.2 (Civil Resilience Pipeline)"}
     try:
         res = requests.get(DEFRA_UKAIR_STATIONS_URL, headers=headers, timeout=15)
         if res.status_code == 200:
@@ -1304,6 +1425,8 @@ def harvest_defra_aurn_telemetry() -> List[Dict[str, Any]]:
                     "id": st["id"],
                     "name": st["name"],
                     "category": "hazards",
+                    "plainBadge": "AIR & SMOKE SENSOR",
+                    "plainSummary": st["plainSummary"],
                     "categoryLabel": "DEFRA AIR QUALITY SENSOR",
                     "accentColor": "#FF3B30",
                     "threatWeight": 1.5,
@@ -1317,12 +1440,11 @@ def harvest_defra_aurn_telemetry() -> List[Dict[str, Any]]:
 
 def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
     """
-    Compile Priority 1 & 2 Geospatial Intelligence as organic, non-rectangular,
-    3-ring feathered clouds locked to British National Grid meters (EPSG:27700).
+    Compile Priority 1 & 2 Geospatial Intelligence as organic, 3-ring feathered clouds
+    with dual plain-English and technical metadata tiers.
     """
     features: List[Dict[str, Any]] = []
 
-    # 1. Topological Cellular Dead Zones (W_signal = 2.5 winding valley clouds)
     for dz in VERIFIED_CELLULAR_DEAD_ZONES:
         line = LineString(dz["line"])
         buf = float(dz["buffer_m"])
@@ -1330,6 +1452,8 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             "id": dz["id"],
             "name": dz["name"],
             "category": "grid_down",
+            "plainBadge": "NO MOBILE SIGNAL",
+            "plainSummary": dz["plainSummary"],
             "categoryLabel": "CELLULAR DEAD ZONE",
             "accentColor": "#FFB800",
             "threatWeight": 2.5,
@@ -1346,7 +1470,6 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             )
         )
 
-    # 2. High-Power Broadcast & RF Transmitter Footprints
     for tx in VERIFIED_RF_TRANSMITTERS:
         pt = Point(tx["coords"][0], tx["coords"][1])
         rad = float(tx["radius_m"])
@@ -1354,6 +1477,8 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             "id": tx["id"],
             "name": tx["name"],
             "category": "grid_down",
+            "plainBadge": "HIGH-POWER RADIO MAST",
+            "plainSummary": tx["plainSummary"],
             "categoryLabel": "RF TRANSMITTER FOOTPRINT",
             "accentColor": "#FFB800",
             "threatWeight": 0.5,
@@ -1370,13 +1495,14 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             )
         )
 
-    # 3. UKHSA / BGS Radon Gas Action Zones (Organic smoothed geological belts)
     for rz in VERIFIED_RADON_ZONES:
         poly = Polygon(rz["poly"])
         base_props = {
             "id": rz["id"],
             "name": rz["name"],
             "category": "hazards",
+            "plainBadge": "RADON GAS AREA",
+            "plainSummary": rz["plainSummary"],
             "categoryLabel": "RADON GAS ACTION ZONE",
             "accentColor": "#FF3B30",
             "threatWeight": 1.0,
@@ -1394,13 +1520,14 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             )
         )
 
-    # 4. Statutory SSSIs (Organic smoothed protected boundaries — STRICT NO FORAGING)
     for sssi in VERIFIED_SSSI_ZONES:
         poly = Polygon(sssi["poly"])
         base_props = {
             "id": sssi["id"],
             "name": sssi["name"],
             "category": "resupply",
+            "plainBadge": "NO FORAGING (PROTECTED)",
+            "plainSummary": sssi["plainSummary"],
             "categoryLabel": "SSSI PROTECTED ZONE (NO FORAGING)",
             "accentColor": "#FF3B30",
             "threatWeight": 0.0,
@@ -1418,13 +1545,14 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             )
         )
 
-    # 5. Ancient Woodland Foraging Biomes (Organic smoothed canopy clouds)
     for fb in VERIFIED_FORAGING_BIOMES:
         poly = Polygon(fb["poly"])
         base_props = {
             "id": fb["id"],
             "name": fb["name"],
             "category": "resupply",
+            "plainBadge": "WILD FOOD WOODLAND",
+            "plainSummary": fb["plainSummary"],
             "categoryLabel": "SUBSISTENCE FORAGING BIOME",
             "accentColor": "#00E5FF",
             "threatWeight": 0.0,
@@ -1442,13 +1570,14 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             )
         )
 
-    # 6. Designated Open Access Land (CRoW Act 2000 — Organic upland massifs)
     for crow in VERIFIED_CROW_ACCESS_LAND:
         poly = Polygon(crow["poly"])
         base_props = {
             "id": crow["id"],
             "name": crow["name"],
             "category": "baseline",
+            "plainBadge": "OPEN WALKING LAND",
+            "plainSummary": crow["plainSummary"],
             "categoryLabel": "CROW OPEN ACCESS LAND",
             "accentColor": "#94A3B8",
             "threatWeight": 0.0,
@@ -1482,6 +1611,8 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
                     "id": g["id"],
                     "name": g["name"],
                     "category": "hazards",
+                    "plainBadge": "RIVER FLOOD GAUGE",
+                    "plainSummary": g["plainSummary"],
                     "categoryLabel": "NRW RIVER TELEMETRY",
                     "accentColor": "#FF3B30",
                     "threatWeight": 5.0,
@@ -1500,6 +1631,8 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
                     "id": th["id"],
                     "name": th["name"],
                     "category": "hazards",
+                    "plainBadge": th["plainBadge"],
+                    "plainSummary": th["plainSummary"],
                     "categoryLabel": th["label"],
                     "accentColor": "#FF3B30",
                     "threatWeight": 8.0,
@@ -1516,6 +1649,8 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
             "id": site["id"],
             "name": site["name"],
             "category": "hazards",
+            "plainBadge": "CHEMICAL HAZARD ZONE",
+            "plainSummary": site["plainSummary"],
             "categoryLabel": "HSE COMAH HAZMAT BUFFER",
             "accentColor": "#FF3B30",
             "threatWeight": 8.0,
@@ -1539,6 +1674,8 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
             "id": corr["id"],
             "name": corr["name"],
             "category": "hazards",
+            "plainBadge": "FLOOD DANGER ZONE",
+            "plainSummary": corr["plainSummary"],
             "categoryLabel": "FLOOD & HYDROLOGICAL CORRIDOR",
             "accentColor": "#FF3B30",
             "threatWeight": 10.0,
@@ -1568,6 +1705,8 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
                 "id": rep["id"],
                 "name": rep["name"],
                 "category": "grid_down",
+                "plainBadge": "EMERGENCY RADIO RELAY",
+                "plainSummary": rep["plainSummary"],
                 "categoryLabel": "RSGB AMATEUR REPEATER",
                 "accentColor": "#FFB800",
                 "threatWeight": 0.0,
@@ -1587,6 +1726,8 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
                     "id": item["id"],
                     "name": item["name"],
                     "category": item["category"],
+                    "plainBadge": item["plainBadge"],
+                    "plainSummary": item["plainSummary"],
                     "categoryLabel": item["categoryLabel"],
                     "accentColor": item["accentColor"],
                     "threatWeight": 0.0,
@@ -1758,20 +1899,24 @@ def main() -> None:
     dmw_flood_zones = harvest_datamapwales_wfs_layer(
         type_name="inspire-nrw:NRW_FLOOD_MAP_FLOOD_ZONE_3_RIVERS_AND_SEA",
         id_prefix="NRW_FZ3",
-        name_default="NRW Statutory Flood Zone 3 (Rivers & Sea)",
+        name_default="River & Coastal Flood Zone",
         category="hazards",
+        plain_badge="FLOOD DANGER ZONE",
+        plain_summary="Official high-risk floodplain. Avoid low roads and riverbanks during heavy rain.",
         category_label="NRW FLOOD ZONE 3 POLYGON",
         accent_color="#FF3B30",
         threat_weight=10.0,
-        metric_text="High Fluvial/Tidal Probability | W_flood +10.0",
+        metric_text="High Fluvial/Tidal Probability | Routing Penalty: W_flood +10.0",
         action_text="Statutory 1-in-30-yr floodplain. Avoid low-lying roads during severe weather.",
         max_count=100,
     )
     dmw_sssi = harvest_datamapwales_wfs_layer(
         type_name="inspire-nrw:NRW_SSSI",
         id_prefix="DMW_SSSI",
-        name_default="Site of Special Scientific Interest (SSSI)",
+        name_default="Protected Wildlife Reserve (SSSI)",
         category="resupply",
+        plain_badge="NO FORAGING (PROTECTED)",
+        plain_summary="Protected wildlife reserve. Do NOT pick plants, uproot anything, or disturb habitat.",
         category_label="SSSI PROTECTED ZONE (NO FORAGING)",
         accent_color="#FF3B30",
         threat_weight=0.0,
@@ -1782,8 +1927,10 @@ def main() -> None:
     dmw_crow = harvest_datamapwales_wfs_layer(
         type_name="inspire-nrw:NRW_OPEN_ACCESS_LAND",
         id_prefix="DMW_CROW",
-        name_default="Designated Open Access Land (CRoW Act 2000)",
+        name_default="Open Mountain & Moorland Access",
         category="baseline",
+        plain_badge="OPEN WALKING LAND",
+        plain_summary="Public right to walk freely off-path across open mountain and moorland ground.",
         category_label="CROW OPEN ACCESS LAND",
         accent_color="#94A3B8",
         threat_weight=0.0,
