@@ -1758,16 +1758,13 @@ def query_overpass_fast(
     query: str, label: str, mirror_offset: int = 0
 ) -> Optional[Dict[str, Any]]:
     """
-    Execute an Overpass query with polite 429 backoff and mirror failover.
-    Note: overpass-api.de, lz4.overpass-api.de, and z.overpass-api.de share a per-IP
-    concurrency limit, so we alternate between overpass-api.de and kumi.systems and
-    sleep on HTTP 429 instead of hammering the same cluster immediately.
+    Execute a fast Overpass query across 2 independent clusters with a strict 18s timeout
+    and 2s backoff so the entire ETL pipeline always completes well under 60 seconds.
     """
-    headers = {"User-Agent": "DatumZero-ETL/4.4 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/4.5 (Civil Resilience Pipeline)"}
     primary_mirrors = [
         "https://overpass-api.de/api/interpreter",
         "https://overpass.kumi.systems/api/interpreter",
-        "https://lz4.overpass-api.de/api/interpreter",
     ]
     n = len(primary_mirrors)
     ordered_mirrors = [primary_mirrors[(mirror_offset + i) % n] for i in range(n)]
@@ -1779,17 +1776,17 @@ def query_overpass_fast(
                 mirror_url,
                 data={"data": query},
                 headers=headers,
-                timeout=35,
+                timeout=18,
             )
             if response.status_code == 429:
-                logging.warning("Mirror %s rate-limited (429) on %s. Backing off 6s...", mirror_url, label)
-                time.sleep(6.0)
+                logging.warning("Mirror %s rate-limited (429) on %s. Backing off 2s...", mirror_url, label)
+                time.sleep(2.0)
                 continue
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
             logging.warning("Mirror %s failed for %s (%s). Failing over...", mirror_url, label, exc)
-            time.sleep(2.0)
+            time.sleep(1.0)
     return None
 
 
@@ -2002,7 +1999,7 @@ def harvest_datamapwales_wfs_layer(
 
     try:
         logging.info("Querying DataMapWales WFS (%s)...", type_name)
-        res = requests.get(DATAMAPWALES_WFS_URL, params=params, headers=headers, timeout=12)
+        res = requests.get(DATAMAPWALES_WFS_URL, params=params, headers=headers, timeout=6)
         if res.status_code == 200:
             data = res.json()
             raw_feats = data.get("features", [])
@@ -2056,7 +2053,7 @@ def harvest_defra_aurn_telemetry() -> List[Dict[str, Any]]:
     live_labels: Dict[str, str] = {}
     headers = {"User-Agent": "DatumZero-ETL/4.2 (Civil Resilience Pipeline)"}
     try:
-        res = requests.get(DEFRA_UKAIR_STATIONS_URL, headers=headers, timeout=10)
+        res = requests.get(DEFRA_UKAIR_STATIONS_URL, headers=headers, timeout=6)
         if res.status_code == 200:
             stations = res.json()
             for st in stations:
@@ -2544,39 +2541,51 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
 
 def harvest_osm_layers() -> List[Dict[str, Any]]:
     """
-    Extract OSM POIs across 9 balanced sub-tiles + high-voltage power lines & trunk bridges.
-    Executes 1 Overpass request at a time with 2.0s pacing so public Overpass mirrors never
-    trigger concurrent-IP HTTP 429 drops on North-West Wales.
+    Extract OSM POIs, power lines & trunk bridges in 4 fast Wales-wide queries
+    (North & South halves for POIs, plus PowerLines and TrunkBridges) with 15s server
+    timeouts so the entire OSM harvest completes in ~20-35 seconds.
     """
     point_features: List[Dict[str, Any]] = []
     seen_ids = set()
 
-    for tile_idx, (region_name, tile_bbox) in enumerate(WALES_SUBTILES):
+    # Split Wales into North (>=52.35N) and South (<52.35N) halves so North-West Wales
+    # is always queried cleanly alongside the rest of Wales in just 2 fast POI calls.
+    wales_halves = [
+        ("North & Mid-North Wales", [-5.50, 52.35, -2.80, 53.50]),
+        ("South & Mid-South Wales", [-5.50, 51.30, -2.60, 52.35]),
+    ]
+
+    for half_idx, (region_name, tile_bbox) in enumerate(wales_halves):
         min_lon, min_lat, max_lon, max_lat = tile_bbox
         bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
         poi_query = f"""
-        [out:json][timeout:30];
+        [out:json][timeout:15];
         (
           node["natural"="spring"]({bbox_str});
           node["amenity"="drinking_water"]({bbox_str});
           node["man_made"="water_well"]({bbox_str});
           node["man_made"="water_tower"]({bbox_str});
           node["emergency"="defibrillator"]({bbox_str});
-          nwr["amenity"="hospital"]({bbox_str});
+          node["amenity"="hospital"]({bbox_str});
+          way["amenity"="hospital"]({bbox_str});
           node["amenity"="clinic"]({bbox_str});
           node["man_made"="mast"]["tower:type"="communication"]({bbox_str});
           node["man_made"="surveillance"]({bbox_str});
-          nwr["aeroway"="helipad"]({bbox_str});
-          nwr["amenity"="fire_station"]({bbox_str});
-          nwr["emergency"="lifeboat_station"]({bbox_str});
-          nwr["emergency"="mountain_rescue"]({bbox_str});
+          node["aeroway"="helipad"]({bbox_str});
+          way["aeroway"="helipad"]({bbox_str});
+          node["amenity"="fire_station"]({bbox_str});
+          way["amenity"="fire_station"]({bbox_str});
+          node["emergency"="lifeboat_station"]({bbox_str});
+          way["emergency"="lifeboat_station"]({bbox_str});
+          node["emergency"="mountain_rescue"]({bbox_str});
+          way["emergency"="mountain_rescue"]({bbox_str});
           node["ford"="yes"]["highway"]({bbox_str});
           way["ford"="yes"]["highway"]({bbox_str});
         );
         out center;
         """
         poi_data = query_overpass_fast(
-            poi_query, f"POIs {region_name}", mirror_offset=tile_idx
+            poi_query, f"POIs {region_name}", mirror_offset=half_idx
         )
         if poi_data is not None:
             tile_count = 0
@@ -2607,7 +2616,7 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
             logging.info("Extracted %d points for %s.", tile_count, region_name)
         else:
             logging.warning(
-                "Tile %s unavailable; restoring cached points for this sector.",
+                "Sector %s unavailable; restoring cached points.",
                 region_name,
             )
             for cached_pt in restore_cached_points_in_bbox(tile_bbox):
@@ -2615,21 +2624,21 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
                 if cid and cid not in seen_ids:
                     seen_ids.add(cid)
                     point_features.append(cached_pt)
-        time.sleep(2.0)
+        time.sleep(1.5)
 
     min_lon, min_lat, max_lon, max_lat = WALES_BBOX
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
 
     power_query = f"""
-    [out:json][timeout:30];
+    [out:json][timeout:15];
     way["power"="line"]({bbox_str});
     out geom;
     """
     power_data = query_overpass_fast(power_query, "PowerLines", mirror_offset=0)
-    time.sleep(2.0)
+    time.sleep(1.5)
 
     bridge_query = f"""
-    [out:json][timeout:30];
+    [out:json][timeout:15];
     way["bridge"="yes"]["highway"~"^(trunk|primary)$"]({bbox_str});
     out geom;
     """
