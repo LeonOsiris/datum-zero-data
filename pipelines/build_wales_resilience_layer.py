@@ -926,6 +926,76 @@ VERIFIED_FLOOD_CORRIDORS: List[Dict[str, Any]] = [
 ]
 
 
+
+# Mountain Crag, Knife-Edge Ridge & MREW Physical Rescue Hazard Clouds
+# Derived from OSM natural=cliff / natural=arete vectors & MREW terrain incident reports
+# (Strictly objective physical terrain hazards; self-harm/suicide data purged per Suicide Act 1961)
+VERIFIED_MOUNTAIN_CRAG_CLOUDS: List[Dict[str, Any]] = [
+    {
+        "id": "CRAG_CRIB_GOCH_SNOWDON",
+        "name": "Crib Goch & Garnedd Ugain Knife-Edge Ridge",
+        "line": [[-4.0635, 53.0768], [-4.0725, 53.0752], [-4.0785, 53.0738], [-4.0763, 53.0685]],
+        "buffer_m": 220,
+        "plainSummary": "Exposed Grade 1 knife-edge ridge with 300m sheer drops on both sides. Lethal in high winds or ice.",
+        "metric": "MREW High-Frequency Terrain Cluster | 923m–1,085m | Penalty: W_incident +6.0",
+        "action": "Unroped scrambling with severe fall exposure. Avoid in gusts >30 mph, cloud, or winter verglas; use Llanberis or Ranger path.",
+    },
+    {
+        "id": "CRAG_CLOGWYN_GARNEDD",
+        "name": "Yr Wyddfa East Face / Clogwyn y Garnedd Sheer Cliffs",
+        "line": [[-4.0755, 53.0682], [-4.0705, 53.0655], [-4.0665, 53.0625]],
+        "buffer_m": 240,
+        "plainSummary": "Vertical 250m cliff face directly below Snowdon summit & Pyg/Miners upper zig-zags.",
+        "metric": "OSM natural=cliff | 250m Vertical Drop & Winter Cornice | Penalty: W_incident +6.0",
+        "action": "Stay strictly on marked paths in mist or snow; winter snow cornices overhang the eastern cliff edge.",
+    },
+    {
+        "id": "CRAG_TRYFAN_BRISTLY",
+        "name": "Tryfan North Ridge & Bristly Ridge Crags (Ogwen)",
+        "line": [[-3.9985, 53.1205], [-3.9978, 53.1155], [-3.9995, 53.1105], [-4.0065, 53.1065]],
+        "buffer_m": 260,
+        "plainSummary": "Steep rocky peak requiring hands-on climbing; high rate of navigation errors and steep crag falls.",
+        "metric": "OVMRO Primary Terrain Cluster | 917m | Penalty: W_incident +6.0",
+        "action": "Easy to stray onto vertical western gullies in low cloud. Descend only via verified Heather Terrace / Bwlch Tryfan.",
+    },
+    {
+        "id": "CRAG_DEVILS_KITCHEN",
+        "name": "Twll Du (Devil's Kitchen) & Y Garn Steep Chute",
+        "line": [[-4.0345, 53.1125], [-4.0395, 53.1145], [-4.0455, 53.1165]],
+        "buffer_m": 230,
+        "plainSummary": "Sheer black cliff gully above Llyn Idwal with loose rock, icefalls, and steep drop-offs.",
+        "metric": "OSM natural=cliff | 800m–947m | Loose Scree & Ice | Penalty: W_incident +5.5",
+        "action": "Never attempt to climb or descend inside the Devil's Kitchen cleft; follow the stepped stone path to the west.",
+    },
+    {
+        "id": "CRAG_CARNEDD_LLEWELYN_BLACK_LADDERS",
+        "name": "Ysgolion Duon (Black Ladders) Cliff Escarpment",
+        "line": [[-3.9765, 53.1645], [-3.9685, 53.1615], [-3.9625, 53.1575]],
+        "buffer_m": 250,
+        "plainSummary": "300m vertical mountain cliff wall in the Carneddau prone to rockfall and winter avalanche.",
+        "metric": "OSM natural=cliff | 1,064m Plateau Edge | Penalty: W_incident +5.5",
+        "action": "Keep well back from the northern plateau rim in whiteout or high winds.",
+    },
+    {
+        "id": "CRAG_CADAIR_IDRIS_CRAIG_CAU",
+        "name": "Cadair Idris — Craig Cau & Penygadair North Cliffs",
+        "line": [[-3.9165, 52.7015], [-3.9085, 52.6995], [-3.9015, 52.6975]],
+        "buffer_m": 260,
+        "plainSummary": "Towering glacial amphitheatre cliffs above Llyn Cau with sudden coastal fog and steep drops.",
+        "metric": "Aberdyfi SAR Terrain Cluster | 893m | Penalty: W_incident +5.5",
+        "action": "Rapid sea-fog engulfment causes hikers to walk off northern crags; navigate by compass bearing along ridge.",
+    },
+    {
+        "id": "CRAG_PEN_Y_FAN_NORTH",
+        "name": "Pen y Fan & Corn Du North Escarpment Cliffs",
+        "line": [[-3.4425, 51.8845], [-3.4365, 51.8835], [-3.4285, 51.8815]],
+        "buffer_m": 240,
+        "plainSummary": "Steep sandstone cliff drop-offs along the northern summit edge of the Brecon Beacons.",
+        "metric": "SWMRA Terrain Cluster | 886m | Cornice & Drop Exposure | Penalty: W_incident +5.0",
+        "action": "Follow the wide southern ridge path; northern face drops sharply into Cwm Llwch.",
+    },
+]
+
 # BGS Clean Water Groundwater Aquifers (Resupply Polygons)
 VERIFIED_AQUIFER_ZONES: List[Dict[str, Any]] = [
     {
@@ -2148,6 +2218,31 @@ def build_verified_hazard_layers() -> List[Dict[str, Any]]:
                 core_buffer_m=rad,
                 mid_extra_m=rad * 0.25,
                 halo_extra_m=rad * 0.55,
+                base_props=base_props,
+            )
+        )
+
+    for crag in VERIFIED_MOUNTAIN_CRAG_CLOUDS:
+        line = LineString(crag["line"])
+        buf = float(crag["buffer_m"])
+        base_props = {
+            "id": crag["id"],
+            "name": crag["name"],
+            "category": "hazards",
+            "plainBadge": "STEEP CLIFF & RIDGE HAZARD",
+            "plainSummary": crag["plainSummary"],
+            "categoryLabel": "MOUNTAIN CRAG & RESCUE CLUSTER",
+            "accentColor": "#FF3B30",
+            "threatWeight": 6.0,
+            "primaryMetric": crag["metric"],
+            "operationalAction": crag["action"],
+        }
+        features.extend(
+            make_three_ring_cloud_polygons(
+                line,
+                core_buffer_m=buf,
+                mid_extra_m=buf * 0.30,
+                halo_extra_m=buf * 0.65,
                 base_props=base_props,
             )
         )
