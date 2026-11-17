@@ -13,11 +13,11 @@ Every feature emits two tiers of text in `properties`:
      revealed when the user expands the bottom sheet.
 """
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import logging
 import re
 import sys
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1107,10 +1107,10 @@ def build_point_feature(
 def query_overpass_fast(
     query: str, label: str, mirror_offset: int = 0
 ) -> Optional[Dict[str, Any]]:
-    """Execute an Overpass query with round-robin mirror rotation and rate-limit backoff."""
-    headers = {"User-Agent": "DatumZero-ETL/4.2 (Civil Resilience Pipeline)"}
+    """Execute a fast Overpass query across 2 distinct mirrors with a tight 20s timeout."""
+    headers = {"User-Agent": "DatumZero-ETL/4.3 (Civil Resilience Pipeline)"}
     n = len(OVERPASS_MIRRORS)
-    ordered_mirrors = [OVERPASS_MIRRORS[(mirror_offset + i) % n] for i in range(n)]
+    ordered_mirrors = [OVERPASS_MIRRORS[(mirror_offset + i) % n] for i in range(min(2, n))]
 
     for mirror_url in ordered_mirrors:
         logging.info("Querying Overpass (%s) via %s...", label, mirror_url)
@@ -1119,17 +1119,15 @@ def query_overpass_fast(
                 mirror_url,
                 data={"data": query},
                 headers=headers,
-                timeout=55,
+                timeout=20,
             )
             if response.status_code == 429:
                 logging.warning("Mirror %s rate-limited (429) on %s. Rotating...", mirror_url, label)
-                time.sleep(4.0)
                 continue
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
             logging.warning("Mirror %s failed for %s (%s). Failing over...", mirror_url, label, exc)
-            time.sleep(2.5)
     return None
 
 
@@ -1342,7 +1340,7 @@ def harvest_datamapwales_wfs_layer(
 
     try:
         logging.info("Querying DataMapWales WFS (%s)...", type_name)
-        res = requests.get(DATAMAPWALES_WFS_URL, params=params, headers=headers, timeout=25)
+        res = requests.get(DATAMAPWALES_WFS_URL, params=params, headers=headers, timeout=12)
         if res.status_code == 200:
             data = res.json()
             raw_feats = data.get("features", [])
@@ -1396,7 +1394,7 @@ def harvest_defra_aurn_telemetry() -> List[Dict[str, Any]]:
     live_labels: Dict[str, str] = {}
     headers = {"User-Agent": "DatumZero-ETL/4.2 (Civil Resilience Pipeline)"}
     try:
-        res = requests.get(DEFRA_UKAIR_STATIONS_URL, headers=headers, timeout=15)
+        res = requests.get(DEFRA_UKAIR_STATIONS_URL, headers=headers, timeout=10)
         if res.status_code == 200:
             stations = res.json()
             for st in stations:
@@ -1739,84 +1737,98 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
     return features
 
 
+def _fetch_single_poi_tile(
+    tile_idx: int, region_name: str, tile_bbox: List[float]
+) -> Tuple[str, List[float], Optional[Dict[str, Any]]]:
+    min_lon, min_lat, max_lon, max_lat = tile_bbox
+    bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+    poi_query = f"""
+    [out:json][timeout:18];
+    (
+      node["natural"="spring"]({bbox_str});
+      node["emergency"="defibrillator"]({bbox_str});
+      node["man_made"="surveillance"]({bbox_str});
+      node["ford"="yes"]["highway"]({bbox_str});
+      way["ford"="yes"]["highway"]({bbox_str});
+    );
+    out center;
+    """
+    return (
+        region_name,
+        tile_bbox,
+        query_overpass_fast(poi_query, f"POIs {region_name}", mirror_offset=tile_idx),
+    )
+
+
 def harvest_osm_layers() -> List[Dict[str, Any]]:
-    """Extract OSM POIs across 7 balanced sub-tiles + high-voltage power lines & trunk bridges."""
+    """Extract OSM POIs, power lines & trunk bridges concurrently across distinct mirrors."""
     point_features: List[Dict[str, Any]] = []
     seen_ids = set()
-
-    for tile_idx, (region_name, tile_bbox) in enumerate(WALES_SUBTILES):
-        min_lon, min_lat, max_lon, max_lat = tile_bbox
-        bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
-        poi_query = f"""
-        [out:json][timeout:50];
-        (
-          node["natural"="spring"]({bbox_str});
-          node["emergency"="defibrillator"]({bbox_str});
-          node["man_made"="surveillance"]({bbox_str});
-          node["ford"="yes"]["highway"]({bbox_str});
-          way["ford"="yes"]["highway"]({bbox_str});
-        );
-        out center;
-        """
-        poi_data = query_overpass_fast(
-            poi_query, f"POIs {region_name}", mirror_offset=tile_idx
-        )
-        if poi_data is not None:
-            tile_count = 0
-            for el in poi_data.get("elements", []):
-                el_type = el.get("type", "node")
-                el_id = f"{el_type}_{el.get('id', '')}"
-                if not el.get("id") or el_id in seen_ids:
-                    continue
-
-                if el_type == "node":
-                    lat = el.get("lat")
-                    lon = el.get("lon")
-                else:
-                    center = el.get("center", {})
-                    lat = center.get("lat")
-                    lon = center.get("lon")
-
-                if lat is None or lon is None:
-                    continue
-
-                pt = build_point_feature(
-                    el_id, float(lon), float(lat), el.get("tags", {})
-                )
-                if pt:
-                    seen_ids.add(el_id)
-                    point_features.append(pt)
-                    tile_count += 1
-            logging.info("Extracted %d points for %s.", tile_count, region_name)
-        else:
-            logging.warning(
-                "Tile %s unavailable; restoring cached points for this sector.",
-                region_name,
-            )
-            for cached_pt in restore_cached_points_in_bbox(tile_bbox):
-                cid = str(cached_pt.get("properties", {}).get("id", ""))
-                if cid and cid not in seen_ids:
-                    seen_ids.add(cid)
-                    point_features.append(cached_pt)
-        time.sleep(2.5)
 
     min_lon, min_lat, max_lon, max_lat = WALES_BBOX
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
 
     power_query = f"""
-    [out:json][timeout:50];
+    [out:json][timeout:18];
     way["power"="line"]({bbox_str});
     out geom;
     """
-    power_data = query_overpass_fast(power_query, "PowerLines", mirror_offset=1)
-    time.sleep(2.0)
-
     bridge_query = f"""
-    [out:json][timeout:50];
+    [out:json][timeout:18];
     way["bridge"="yes"]["highway"~"^(trunk|primary)$"]({bbox_str});
     out geom;
     """
-    bridge_data = query_overpass_fast(bridge_query, "TrunkBridges", mirror_offset=2)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        tile_futures = [
+            pool.submit(_fetch_single_poi_tile, idx, name, bbox)
+            for idx, (name, bbox) in enumerate(WALES_SUBTILES)
+        ]
+        power_future = pool.submit(query_overpass_fast, power_query, "PowerLines", 1)
+        bridge_future = pool.submit(query_overpass_fast, bridge_query, "TrunkBridges", 2)
+
+        for fut in as_completed(tile_futures):
+            region_name, tile_bbox, poi_data = fut.result()
+            if poi_data is not None:
+                tile_count = 0
+                for el in poi_data.get("elements", []):
+                    el_type = el.get("type", "node")
+                    el_id = f"{el_type}_{el.get('id', '')}"
+                    if not el.get("id") or el_id in seen_ids:
+                        continue
+
+                    if el_type == "node":
+                        lat = el.get("lat")
+                        lon = el.get("lon")
+                    else:
+                        center = el.get("center", {})
+                        lat = center.get("lat")
+                        lon = center.get("lon")
+
+                    if lat is None or lon is None:
+                        continue
+
+                    pt = build_point_feature(
+                        el_id, float(lon), float(lat), el.get("tags", {})
+                    )
+                    if pt:
+                        seen_ids.add(el_id)
+                        point_features.append(pt)
+                        tile_count += 1
+                logging.info("Extracted %d points for %s.", tile_count, region_name)
+            else:
+                logging.warning(
+                    "Tile %s unavailable; restoring cached points for this sector.",
+                    region_name,
+                )
+                for cached_pt in restore_cached_points_in_bbox(tile_bbox):
+                    cid = str(cached_pt.get("properties", {}).get("id", ""))
+                    if cid and cid not in seen_ids:
+                        seen_ids.add(cid)
+                        point_features.append(cached_pt)
+
+        power_data = power_future.result()
+        bridge_data = bridge_future.result()
 
     if power_data is not None:
         power_lines: List[Tuple[LineString, int, str]] = []
@@ -1894,50 +1906,57 @@ def main() -> None:
     static_baseline = get_static_baseline_features()
     verified_hazards = build_verified_hazard_layers()
     priority_layers = build_priority_1_and_2_layers()
-    defra_aurn = harvest_defra_aurn_telemetry()
-
-    dmw_flood_zones = harvest_datamapwales_wfs_layer(
-        type_name="inspire-nrw:NRW_FLOOD_MAP_FLOOD_ZONE_3_RIVERS_AND_SEA",
-        id_prefix="NRW_FZ3",
-        name_default="River & Coastal Flood Zone",
-        category="hazards",
-        plain_badge="FLOOD DANGER ZONE",
-        plain_summary="Official high-risk floodplain. Avoid low roads and riverbanks during heavy rain.",
-        category_label="NRW FLOOD ZONE 3 POLYGON",
-        accent_color="#FF3B30",
-        threat_weight=10.0,
-        metric_text="High Fluvial/Tidal Probability | Routing Penalty: W_flood +10.0",
-        action_text="Statutory 1-in-30-yr floodplain. Avoid low-lying roads during severe weather.",
-        max_count=100,
-    )
-    dmw_sssi = harvest_datamapwales_wfs_layer(
-        type_name="inspire-nrw:NRW_SSSI",
-        id_prefix="DMW_SSSI",
-        name_default="Protected Wildlife Reserve (SSSI)",
-        category="resupply",
-        plain_badge="NO FORAGING (PROTECTED)",
-        plain_summary="Protected wildlife reserve. Do NOT pick plants, uproot anything, or disturb habitat.",
-        category_label="SSSI PROTECTED ZONE (NO FORAGING)",
-        accent_color="#FF3B30",
-        threat_weight=0.0,
-        metric_text="Statutory SSSI | Wildlife & Countryside Act 1981",
-        action_text="FORAGING PROHIBITED: High-Conservation SSSI Zone. No harvesting or uprooting permitted.",
-        max_count=60,
-    )
-    dmw_crow = harvest_datamapwales_wfs_layer(
-        type_name="inspire-nrw:NRW_OPEN_ACCESS_LAND",
-        id_prefix="DMW_CROW",
-        name_default="Open Mountain & Moorland Access",
-        category="baseline",
-        plain_badge="OPEN WALKING LAND",
-        plain_summary="Public right to walk freely off-path across open mountain and moorland ground.",
-        category_label="CROW OPEN ACCESS LAND",
-        accent_color="#94A3B8",
-        threat_weight=0.0,
-        metric_text="CRoW Act 2000 Statutory Access",
-        action_text="Legal right of foot access across uncultivated upland terrain.",
-        max_count=60,
-    )
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        f_aurn = pool.submit(harvest_defra_aurn_telemetry)
+        f_fz3 = pool.submit(
+            harvest_datamapwales_wfs_layer,
+            "inspire-nrw:NRW_FLOOD_MAP_FLOOD_ZONE_3_RIVERS_AND_SEA",
+            "NRW_FZ3",
+            "River & Coastal Flood Zone",
+            "hazards",
+            "FLOOD DANGER ZONE",
+            "Official high-risk floodplain. Avoid low roads and riverbanks during heavy rain.",
+            "NRW FLOOD ZONE 3 POLYGON",
+            "#FF3B30",
+            10.0,
+            "High Fluvial/Tidal Probability | Routing Penalty: W_flood +10.0",
+            "Statutory 1-in-30-yr floodplain. Avoid low-lying roads during severe weather.",
+            100,
+        )
+        f_sssi = pool.submit(
+            harvest_datamapwales_wfs_layer,
+            "inspire-nrw:NRW_SSSI",
+            "DMW_SSSI",
+            "Protected Wildlife Reserve (SSSI)",
+            "resupply",
+            "NO FORAGING (PROTECTED)",
+            "Protected wildlife reserve. Do NOT pick plants, uproot anything, or disturb habitat.",
+            "SSSI PROTECTED ZONE (NO FORAGING)",
+            "#FF3B30",
+            0.0,
+            "Statutory SSSI | Wildlife & Countryside Act 1981",
+            "FORAGING PROHIBITED: High-Conservation SSSI Zone. No harvesting or uprooting permitted.",
+            60,
+        )
+        f_crow = pool.submit(
+            harvest_datamapwales_wfs_layer,
+            "inspire-nrw:NRW_OPEN_ACCESS_LAND",
+            "DMW_CROW",
+            "Open Mountain & Moorland Access",
+            "baseline",
+            "OPEN WALKING LAND",
+            "Public right to walk freely off-path across open mountain and moorland ground.",
+            "CROW OPEN ACCESS LAND",
+            "#94A3B8",
+            0.0,
+            "CRoW Act 2000 Statutory Access",
+            "Legal right of foot access across uncultivated upland terrain.",
+            60,
+        )
+        defra_aurn = f_aurn.result()
+        dmw_flood_zones = f_fz3.result()
+        dmw_sssi = f_sssi.result()
+        dmw_crow = f_crow.result()
 
     merged_by_id: Dict[str, Dict[str, Any]] = {}
     for feat in (
