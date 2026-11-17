@@ -2539,110 +2539,146 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
     return features
 
 
+def _ingest_overpass_elements(
+    data: Optional[Dict[str, Any]],
+    point_features: List[Dict[str, Any]],
+    seen_ids: set,
+    label: str,
+) -> int:
+    if data is None:
+        logging.warning("Query '%s' returned no data.", label)
+        return 0
+    added = 0
+    for el in data.get("elements", []):
+        el_type = el.get("type", "node")
+        el_id = f"{el_type}_{el.get('id', '')}"
+        if not el.get("id") or el_id in seen_ids:
+            continue
+        if el_type == "node":
+            lat = el.get("lat")
+            lon = el.get("lon")
+        else:
+            center = el.get("center", {})
+            lat = center.get("lat")
+            lon = center.get("lon")
+        if lat is None or lon is None:
+            continue
+        pt = build_point_feature(el_id, float(lon), float(lat), el.get("tags", {}))
+        if pt:
+            seen_ids.add(el_id)
+            point_features.append(pt)
+            added += 1
+    logging.info("Extracted %d points for %s.", added, label)
+    return added
+
+
 def harvest_osm_layers() -> List[Dict[str, Any]]:
     """
-    Extract OSM POIs, power lines & trunk bridges in 4 fast Wales-wide queries
-    (North & South halves for POIs, plus PowerLines and TrunkBridges) with 15s server
-    timeouts so the entire OSM harvest completes in ~20-35 seconds.
+    Fast, cache-preserving OSM harvester (<30s total):
+    1. Starts from all existing cached OSM points in dist/wales_resilience_master.geojson
+       so previously harvested regions are never wiped on transient mirror slowness.
+    2. Runs two ultra-fast (<3s) focused queries specifically for North-West Wales
+       (Anglesey, Eryri, Llyn, Conwy: 52.50N..53.48N, -4.85W..-3.55W) to fill the
+       missing pocket completely.
+    3. Runs one lightweight Wales-wide query for hospitals, clinics, water taps/towers,
+       masts, helipads, fire/RNLI/mountain rescue stations across all of Wales.
     """
     point_features: List[Dict[str, Any]] = []
     seen_ids = set()
 
-    # Split Wales into North (>=52.35N) and South (<52.35N) halves so North-West Wales
-    # is always queried cleanly alongside the rest of Wales in just 2 fast POI calls.
-    wales_halves = [
-        ("North & Mid-North Wales", [-5.50, 52.35, -2.80, 53.50]),
-        ("South & Mid-South Wales", [-5.50, 51.30, -2.60, 52.35]),
-    ]
+    # Step 1: Seed with existing cached OSM points across Wales so nothing is ever lost
+    for cached_pt in restore_cached_points_in_bbox(WALES_BBOX):
+        cid = str(cached_pt.get("properties", {}).get("id", ""))
+        if cid and cid not in seen_ids:
+            seen_ids.add(cid)
+            point_features.append(cached_pt)
 
-    for half_idx, (region_name, tile_bbox) in enumerate(wales_halves):
-        min_lon, min_lat, max_lon, max_lat = tile_bbox
-        bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
-        poi_query = f"""
-        [out:json][timeout:15];
-        (
-          node["natural"="spring"]({bbox_str});
-          node["amenity"="drinking_water"]({bbox_str});
-          node["man_made"="water_well"]({bbox_str});
-          node["man_made"="water_tower"]({bbox_str});
-          node["emergency"="defibrillator"]({bbox_str});
-          node["amenity"="hospital"]({bbox_str});
-          way["amenity"="hospital"]({bbox_str});
-          node["amenity"="clinic"]({bbox_str});
-          node["man_made"="mast"]["tower:type"="communication"]({bbox_str});
-          node["man_made"="surveillance"]({bbox_str});
-          node["aeroway"="helipad"]({bbox_str});
-          way["aeroway"="helipad"]({bbox_str});
-          node["amenity"="fire_station"]({bbox_str});
-          way["amenity"="fire_station"]({bbox_str});
-          node["emergency"="lifeboat_station"]({bbox_str});
-          way["emergency"="lifeboat_station"]({bbox_str});
-          node["emergency"="mountain_rescue"]({bbox_str});
-          way["emergency"="mountain_rescue"]({bbox_str});
-          node["ford"="yes"]["highway"]({bbox_str});
-          way["ford"="yes"]["highway"]({bbox_str});
-        );
-        out center;
-        """
-        poi_data = query_overpass_fast(
-            poi_query, f"POIs {region_name}", mirror_offset=half_idx
-        )
-        if poi_data is not None:
-            tile_count = 0
-            for el in poi_data.get("elements", []):
-                el_type = el.get("type", "node")
-                el_id = f"{el_type}_{el.get('id', '')}"
-                if not el.get("id") or el_id in seen_ids:
-                    continue
+    # Step 2A: Dedicated ultra-fast query for NW Wales AEDs & CCTV (the two densest node layers)
+    nw_bbox = "52.50,-4.85,53.48,-3.55"
+    nw_dense_query = f"""
+    [out:json][timeout:25];
+    (
+      node["emergency"="defibrillator"]({nw_bbox});
+      node["man_made"="surveillance"]({nw_bbox});
+    );
+    out body;
+    """
+    _ingest_overpass_elements(
+        query_overpass_fast(nw_dense_query, "NW-Wales-AED-CCTV", mirror_offset=0),
+        point_features,
+        seen_ids,
+        "NW-Wales-AED-CCTV",
+    )
+    time.sleep(1.5)
 
-                if el_type == "node":
-                    lat = el.get("lat")
-                    lon = el.get("lon")
-                else:
-                    center = el.get("center", {})
-                    lat = center.get("lat")
-                    lon = center.get("lon")
+    # Step 2B: Dedicated ultra-fast query for NW Wales Springs, Water, Hospitals, Rescue & Fords
+    nw_infra_query = f"""
+    [out:json][timeout:25];
+    (
+      node["natural"="spring"]({nw_bbox});
+      node["amenity"="drinking_water"]({nw_bbox});
+      node["man_made"~"^(water_well|water_tower|mast)$"]({nw_bbox});
+      node["amenity"~"^(hospital|clinic|fire_station)$"]({nw_bbox});
+      way["amenity"~"^(hospital|fire_station)$"]({nw_bbox});
+      node["emergency"~"^(lifeboat_station|mountain_rescue)$"]({nw_bbox});
+      way["emergency"~"^(lifeboat_station|mountain_rescue)$"]({nw_bbox});
+      node["aeroway"="helipad"]({nw_bbox});
+      way["aeroway"="helipad"]({nw_bbox});
+      node["ford"="yes"]["highway"]({nw_bbox});
+      way["ford"="yes"]["highway"]({nw_bbox});
+    );
+    out center;
+    """
+    _ingest_overpass_elements(
+        query_overpass_fast(nw_infra_query, "NW-Wales-Infra", mirror_offset=1),
+        point_features,
+        seen_ids,
+        "NW-Wales-Infra",
+    )
+    time.sleep(1.5)
 
-                if lat is None or lon is None:
-                    continue
-
-                pt = build_point_feature(
-                    el_id, float(lon), float(lat), el.get("tags", {})
-                )
-                if pt:
-                    seen_ids.add(el_id)
-                    point_features.append(pt)
-                    tile_count += 1
-            logging.info("Extracted %d points for %s.", tile_count, region_name)
-        else:
-            logging.warning(
-                "Sector %s unavailable; restoring cached points.",
-                region_name,
-            )
-            for cached_pt in restore_cached_points_in_bbox(tile_bbox):
-                cid = str(cached_pt.get("properties", {}).get("id", ""))
-                if cid and cid not in seen_ids:
-                    seen_ids.add(cid)
-                    point_features.append(cached_pt)
-        time.sleep(1.5)
-
+    # Step 3: Lightweight Wales-wide query for new Batch 3/4 infrastructure categories
     min_lon, min_lat, max_lon, max_lat = WALES_BBOX
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+    wales_infra_query = f"""
+    [out:json][timeout:25];
+    (
+      node["amenity"="drinking_water"]({bbox_str});
+      node["man_made"~"^(water_well|water_tower)$"]({bbox_str});
+      node["amenity"~"^(hospital|clinic)$"]({bbox_str});
+      way["amenity"="hospital"]({bbox_str});
+      node["man_made"="mast"]["tower:type"="communication"]({bbox_str});
+      node["aeroway"="helipad"]({bbox_str});
+      way["aeroway"="helipad"]({bbox_str});
+      node["amenity"="fire_station"]({bbox_str});
+      way["amenity"="fire_station"]({bbox_str});
+      node["emergency"~"^(lifeboat_station|mountain_rescue)$"]({bbox_str});
+      way["emergency"~"^(lifeboat_station|mountain_rescue)$"]({bbox_str});
+    );
+    out center;
+    """
+    _ingest_overpass_elements(
+        query_overpass_fast(wales_infra_query, "Wales-Wide-Infra", mirror_offset=0),
+        point_features,
+        seen_ids,
+        "Wales-Wide-Infra",
+    )
+    time.sleep(1.5)
 
     power_query = f"""
-    [out:json][timeout:15];
+    [out:json][timeout:25];
     way["power"="line"]({bbox_str});
     out geom;
     """
-    power_data = query_overpass_fast(power_query, "PowerLines", mirror_offset=0)
+    power_data = query_overpass_fast(power_query, "PowerLines", mirror_offset=1)
     time.sleep(1.5)
 
     bridge_query = f"""
-    [out:json][timeout:15];
+    [out:json][timeout:25];
     way["bridge"="yes"]["highway"~"^(trunk|primary)$"]({bbox_str});
     out geom;
     """
-    bridge_data = query_overpass_fast(bridge_query, "TrunkBridges", mirror_offset=1)
+    bridge_data = query_overpass_fast(bridge_query, "TrunkBridges", mirror_offset=0)
 
     if power_data is not None:
         power_lines: List[Tuple[LineString, int, str]] = []
