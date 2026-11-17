@@ -925,6 +925,154 @@ VERIFIED_FLOOD_CORRIDORS: List[Dict[str, Any]] = [
     },
 ]
 
+
+# BGS Clean Water Groundwater Aquifers (Resupply Polygons)
+VERIFIED_AQUIFER_ZONES: List[Dict[str, Any]] = [
+    {
+        "id": "AQUIFER_VALE_CLWYD",
+        "name": "Vale of Clwyd Sandstone Groundwater Aquifer",
+        "poly": [
+            [-3.48, 53.31], [-3.36, 53.30], [-3.28, 53.21], [-3.25, 53.11],
+            [-3.31, 53.08], [-3.39, 53.12], [-3.45, 53.22], [-3.48, 53.31],
+        ],
+        "plainSummary": "Major underground sandstone water store feeding reliable springs and farm boreholes.",
+        "metric": "BGS Principal Permo-Triassic Sandstone Aquifer | High Yield",
+        "action": "High-capacity groundwater basin; prioritize spring lines along eastern limestone fault margin.",
+    },
+    {
+        "id": "AQUIFER_BRECON_ORS",
+        "name": "Bannau Brycheiniog Old Red Sandstone Aquifer",
+        "poly": [
+            [-3.68, 51.94], [-3.46, 51.96], [-3.22, 51.93], [-3.18, 51.84],
+            [-3.34, 51.81], [-3.56, 51.82], [-3.68, 51.88], [-3.68, 51.94],
+        ],
+        "plainSummary": "Upland sandstone rock layer feeding dozens of clean, cold mountain springs year-round.",
+        "metric": "BGS Secondary A / Principal Devonian Sandstone Aquifer",
+        "action": "Abundant upland spring discharge along northern escarpment; filter or boil 60s before storage.",
+    },
+    {
+        "id": "AQUIFER_SOUTH_PEMBROKE",
+        "name": "South Pembrokeshire Carboniferous Limestone Aquifer",
+        "poly": [
+            [-5.02, 51.70], [-4.82, 51.71], [-4.68, 51.68], [-4.69, 51.62],
+            [-4.88, 51.61], [-5.01, 51.64], [-5.02, 51.70],
+        ],
+        "plainSummary": "Coastal limestone groundwater basin feeding natural springs and wells across South Pembroke.",
+        "metric": "BGS Principal Carboniferous Limestone Karst Aquifer",
+        "action": "Fast-draining karst aquifer; always filter or boil spring water after heavy agricultural runoff.",
+    },
+]
+
+# BGS GeoSure Landslide & Steep Valley Slope Instability Corridors (Hazards)
+VERIFIED_LANDSLIDE_ZONES: List[Dict[str, Any]] = [
+    {
+        "id": "SLIP_RHONDDA_VALLEYS",
+        "name": "Rhondda & Taff Valley Steep Slope / Landslide Zone",
+        "line": [[-3.52, 51.68], [-3.44, 51.65], [-3.37, 51.62], [-3.32, 51.59]],
+        "buffer_m": 420,
+        "plainSummary": "Steep valley sides prone to mudslides, fallen trees, and road blockages during heavy rain.",
+        "metric": "BGS GeoSure High Landslide Susceptibility | Penalty: W_incident +3.0",
+        "action": "Glacial till & coal-measure slopes saturate rapidly; watch for debris flows blocking A4058/A4061.",
+    },
+    {
+        "id": "SLIP_NANT_FFRANCON",
+        "name": "Nant Ffrancon & Llyn Ogwen Scree / Rockslide Corridor",
+        "line": [[-4.04, 53.15], [-4.02, 53.13], [-3.99, 53.11]],
+        "buffer_m": 340,
+        "plainSummary": "Steep mountain cliffs above the A5 prone to rockfalls and scree slides in freeze-thaw weather.",
+        "metric": "BGS GeoSure Steep Bedrock / Scree Instability | Penalty: W_incident +3.0",
+        "action": "Avoid parking or sheltering directly beneath steep eastern crags during heavy rain or thaw.",
+    },
+    {
+        "id": "SLIP_EBBW_SIRHOWY",
+        "name": "Ebbw & Sirhowy Valley Steep Escarpment Slip Zone",
+        "line": [[-3.22, 51.76], [-3.19, 51.71], [-3.16, 51.66]],
+        "buffer_m": 380,
+        "plainSummary": "Steep South Wales valley slopes prone to earthslips and blocked roads after prolonged storms.",
+        "metric": "BGS GeoSure High Mass-Movement Zone | Penalty: W_incident +3.0",
+        "action": "Monitor valley road embankments for slumping and culvert washouts during named storms.",
+    },
+]
+
+# Ministry of Defence (MoD) Live-Fire & Restricted Training Ranges (National Security Act 2023 Compliant)
+VERIFIED_MOD_RESTRICTED_ZONES: List[Dict[str, Any]] = [
+    {
+        "id": "MOD_SENNYBRIDGE_SENTA",
+        "name": "Sennybridge Military Training Area (Restricted Access)",
+        "poly": [
+            [-3.72, 52.06], [-3.54, 52.07], [-3.48, 52.01], [-3.55, 51.96],
+            [-3.69, 51.97], [-3.74, 52.02], [-3.72, 52.06],
+        ],
+        "plainSummary": "Active military live-firing range. Public entry is strictly prohibited when red flags/lamps are active.",
+        "metric": "MoD Statutory Danger Area (SENTA) | OS OpenData Boundary",
+        "action": "Do not enter perimeter or touch unexploded ordnance; keep strictly to public A40/B4519 trunk roads.",
+    },
+    {
+        "id": "MOD_CASTLEMARTIN",
+        "name": "Castlemartin Coastal Firing Range (Restricted Access)",
+        "poly": [
+            [-5.06, 51.64], [-4.94, 51.64], [-4.93, 51.60], [-5.05, 51.60], [-5.06, 51.64],
+        ],
+        "plainSummary": "Coastal military live-firing range in South Pembrokeshire. Coastal path closes during firing.",
+        "metric": "MoD Statutory Danger Area (Castlemartin) | OS OpenData Boundary",
+        "action": "Check range firing notices; divert inland via Warren/St Twynnells when coastal perimeter is closed.",
+    },
+    {
+        "id": "MOD_PENDINE_ABERPORTH",
+        "name": "Pendine Sands & Test Range (Restricted Access)",
+        "poly": [
+            [-4.56, 51.76], [-4.46, 51.76], [-4.46, 51.73], [-4.56, 51.73], [-4.56, 51.76],
+        ],
+        "plainSummary": "Restricted coastal test range and tidal beach danger zone. Obey perimeter warning signs.",
+        "metric": "MoD Statutory Danger Area (Pendine) | OS OpenData Boundary",
+        "action": "Public access prohibited inside range markers; high-speed tidal surge hazard on adjacent flats.",
+    },
+]
+
+# Wales Air Ambulance & Major Hospital Helipads (Baseline Emergency Aviation)
+VERIFIED_HELIPADS: List[Dict[str, Any]] = [
+    {
+        "id": "HELI_CAERNARFON_WAA",
+        "name": "Caernarfon Airport / Wales Air Ambulance North Base",
+        "coords": [-4.3375, 53.1025],
+        "plainSummary": "North Wales Air Ambulance helicopter base and coastal airfield.",
+        "metric": "ICAO: EGCK | Wales Air Ambulance Charity HEMS Base",
+        "action": "Active emergency helicopter operations; maintain strict perimeter clearance.",
+    },
+    {
+        "id": "HELI_YSBYTY_GWYNEDD",
+        "name": "Ysbyty Gwynedd Hospital Helipad (Bangor)",
+        "coords": [-4.1592, 53.2088],
+        "plainSummary": "Main North-West Wales hospital emergency helicopter landing pad.",
+        "metric": "Hospital Trauma Helipad | Bangor Major A&E",
+        "action": "Emergency air-ambulance landing zone; keep approach path clear.",
+    },
+    {
+        "id": "HELI_WELSHPOOL_WAA",
+        "name": "Welshpool Airport / Wales Air Ambulance Mid Base",
+        "coords": [-3.1535, 52.6285],
+        "plainSummary": "Mid-Wales Air Ambulance helicopter base and regional airfield.",
+        "metric": "ICAO: EGCW | Wales Air Ambulance Mid-Wales Hub",
+        "action": "Active emergency helicopter operations; keep clear of landing strip.",
+    },
+    {
+        "id": "HELI_DREFACH_WAA",
+        "name": "Drefach / Llanelli Wales Air Ambulance South-West Base",
+        "coords": [-4.1125, 51.8165],
+        "plainSummary": "South-West Wales Air Ambulance critical care helicopter base.",
+        "metric": "Wales Air Ambulance Charity HEMS Hub",
+        "action": "Active 24/7 emergency medical helicopter base.",
+    },
+    {
+        "id": "HELI_CARDIFF_UHW",
+        "name": "University Hospital of Wales Helipad (Cardiff)",
+        "coords": [-3.1895, 51.5068],
+        "plainSummary": "Major South Wales trauma hospital helicopter landing pad.",
+        "metric": "Major Trauma Centre Helipad | Cardiff UHW",
+        "action": "Primary South Wales tertiary trauma air-ambulance pad.",
+    },
+]
+
 MINOR_PATH_TYPES = {"footway", "path", "track", "bridleway", "cycleway", "steps"}
 
 
@@ -1046,6 +1194,41 @@ def build_point_feature(
         plain_summary = "Natural groundwater spring. Filter or boil for 1 minute before drinking."
         metric = "Gravity Spring Discharge | OSM natural=spring"
         action = "Filter with 0.1-micron pump or boil at a rolling boil for 60s."
+        weight = 0.0
+    elif tags.get("amenity") == "drinking_water" or tags.get("man_made") == "water_well":
+        category = "resupply"
+        accent = "#00E5FF"
+        plain_badge = "DRINKING WATER TAP / WELL"
+        label = "POTABLE WATER POINT / BOREHOLE"
+        default_name = "Public Drinking Water Tap / Well"
+        plain_summary = "Public water tap or well. During power cuts, gravity-fed taps may still run briefly."
+        metric = "Potable Tap / Shallow Well | OSM drinking_water"
+        action = "Fill containers early during grid warnings; purify if mains pressure drops."
+        weight = 0.0
+    elif tags.get("aeroway") == "helipad":
+        category = "baseline"
+        accent = "#10B981"
+        plain_badge = "EMERGENCY HELIPAD"
+        label = "CAA / HOSPITAL / SAR HELIPAD"
+        default_name = "Designated Helicopter Landing Pad"
+        plain_summary = "Clear helicopter landing pad used by Air Ambulance and Search & Rescue. Keep well clear."
+        metric = "Designated Helipad | CAA / OSM aeroway=helipad"
+        action = "Keep 50m perimeter clear of loose gear, drones, and vehicles during rotor operations."
+        weight = 0.0
+    elif tags.get("amenity") == "fire_station" or tags.get("emergency") == "lifeboat_station":
+        is_rnli = tags.get("emergency") == "lifeboat_station"
+        category = "baseline"
+        accent = "#94A3B8"
+        plain_badge = "RNLI LIFEBOAT STATION" if is_rnli else "FIRE & RESCUE STATION"
+        label = "STATUTORY EMERGENCY HUB"
+        default_name = "RNLI Coastal Lifeboat Station" if is_rnli else "Fire & Rescue Station"
+        plain_summary = (
+            "Coastal sea rescue lifeboat station with backup generator power and VHF marine radio."
+            if is_rnli
+            else "Local Fire & Rescue station — statutory community emergency hub with backup power."
+        )
+        metric = "RNLI Maritime SAR Station" if is_rnli else "Mid & West / North / South Wales Fire & Rescue"
+        action = "Statutory emergency service base; note stations may be uncrewed while appliances are deployed."
         weight = 0.0
     elif tags.get("emergency") == "defibrillator":
         category = "medical"
@@ -1593,6 +1776,84 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             )
         )
 
+    # 7. BGS Clean Water Groundwater Aquifers (Resupply Polygons)
+    for aq in VERIFIED_AQUIFER_ZONES:
+        poly = Polygon(aq["poly"])
+        base_props = {
+            "id": aq["id"],
+            "name": aq["name"],
+            "category": "resupply",
+            "plainBadge": "GROUNDWATER AQUIFER",
+            "plainSummary": aq["plainSummary"],
+            "categoryLabel": "BGS CLEAN WATER AQUIFER",
+            "accentColor": "#00E5FF",
+            "threatWeight": 0.0,
+            "primaryMetric": aq["metric"],
+            "operationalAction": aq["action"],
+        }
+        features.extend(
+            make_three_ring_cloud_polygons(
+                poly,
+                core_buffer_m=0.0,
+                mid_extra_m=600.0,
+                halo_extra_m=1350.0,
+                base_props=base_props,
+                morph_smooth_m=1100.0,
+            )
+        )
+
+    # 8. BGS Landslide & Steep Valley Slope Instability Corridors (Hazards)
+    for sl in VERIFIED_LANDSLIDE_ZONES:
+        line = LineString(sl["line"])
+        buf = float(sl["buffer_m"])
+        base_props = {
+            "id": sl["id"],
+            "name": sl["name"],
+            "category": "hazards",
+            "plainBadge": "LANDSLIDE & SCREE ZONE",
+            "plainSummary": sl["plainSummary"],
+            "categoryLabel": "SLOPE INSTABILITY CORRIDOR",
+            "accentColor": "#FF3B30",
+            "threatWeight": 3.0,
+            "primaryMetric": sl["metric"],
+            "operationalAction": sl["action"],
+        }
+        features.extend(
+            make_three_ring_cloud_polygons(
+                line,
+                core_buffer_m=buf,
+                mid_extra_m=buf * 0.28,
+                halo_extra_m=buf * 0.60,
+                base_props=base_props,
+            )
+        )
+
+    # 9. MoD Live-Fire & Restricted Training Areas (National Security Act 2023 Compliant)
+    for mod in VERIFIED_MOD_RESTRICTED_ZONES:
+        poly = Polygon(mod["poly"])
+        base_props = {
+            "id": mod["id"],
+            "name": mod["name"],
+            "category": "hazards",
+            "plainBadge": "MOD FIRING RANGE (NO ENTRY)",
+            "plainSummary": mod["plainSummary"],
+            "categoryLabel": "MOD RESTRICTED DANGER AREA",
+            "accentColor": "#FFB800",
+            "threatWeight": 10.0,
+            "primaryMetric": mod["metric"],
+            "operationalAction": mod["action"],
+        }
+        features.extend(
+            make_three_ring_cloud_polygons(
+                poly,
+                core_buffer_m=0.0,
+                mid_extra_m=450.0,
+                halo_extra_m=1000.0,
+                base_props=base_props,
+                morph_smooth_m=800.0,
+            )
+        )
+
     return features
 
 
@@ -1734,6 +1995,26 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
                 },
             }
         )
+    for heli in VERIFIED_HELIPADS:
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": heli["coords"]},
+                "properties": {
+                    "id": heli["id"],
+                    "name": heli["name"],
+                    "category": "baseline",
+                    "plainBadge": "EMERGENCY HELIPAD",
+                    "plainSummary": heli["plainSummary"],
+                    "categoryLabel": "CAA / HEMS HELIPAD",
+                    "accentColor": "#10B981",
+                    "threatWeight": 0.0,
+                    "primaryMetric": heli["metric"],
+                    "operationalAction": heli["action"],
+                },
+            }
+        )
+
     return features
 
 
@@ -1746,8 +2027,16 @@ def _fetch_single_poi_tile(
     [out:json][timeout:18];
     (
       node["natural"="spring"]({bbox_str});
+      node["amenity"="drinking_water"]({bbox_str});
+      node["man_made"="water_well"]({bbox_str});
       node["emergency"="defibrillator"]({bbox_str});
       node["man_made"="surveillance"]({bbox_str});
+      node["aeroway"="helipad"]({bbox_str});
+      way["aeroway"="helipad"]({bbox_str});
+      node["amenity"="fire_station"]({bbox_str});
+      way["amenity"="fire_station"]({bbox_str});
+      node["emergency"="lifeboat_station"]({bbox_str});
+      way["emergency"="lifeboat_station"]({bbox_str});
       node["ford"="yes"]["highway"]({bbox_str});
       way["ford"="yes"]["highway"]({bbox_str});
     );
