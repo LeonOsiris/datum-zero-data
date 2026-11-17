@@ -38,7 +38,8 @@ DEFRA_UKAIR_STATIONS_URL = "https://uk-air.defra.gov.uk/sos-ukair/api/v1/station
 
 # 7 balanced regional tiles [min_lon, min_lat, max_lon, max_lat]
 WALES_SUBTILES: List[Tuple[str, List[float]]] = [
-    ("North-West Wales (Eryri & Anglesey)", [-5.50, 52.75, -3.60, 53.50]),
+    ("North-West Wales (Anglesey & Llyn)", [-5.50, 52.75, -4.18, 53.50]),
+    ("North-Central Wales (Eryri & Conwy)", [-4.18, 52.75, -3.60, 53.50]),
     ("North-East Wales (Clwyd & Dee)", [-3.60, 52.75, -2.80, 53.50]),
     ("Mid-West Wales (Ceredigion)", [-5.50, 52.00, -3.70, 52.75]),
     ("Mid-East Wales (Powys)", [-3.70, 52.00, -2.90, 52.75]),
@@ -1589,7 +1590,7 @@ def query_overpass_fast(
     """Execute a fast Overpass query across 2 distinct mirrors with a tight 20s timeout."""
     headers = {"User-Agent": "DatumZero-ETL/4.3 (Civil Resilience Pipeline)"}
     n = len(OVERPASS_MIRRORS)
-    ordered_mirrors = [OVERPASS_MIRRORS[(mirror_offset + i) % n] for i in range(min(2, n))]
+    ordered_mirrors = [OVERPASS_MIRRORS[(mirror_offset + i) % n] for i in range(min(3, n))]
 
     for mirror_url in ordered_mirrors:
         logging.info("Querying Overpass (%s) via %s...", label, mirror_url)
@@ -1598,7 +1599,7 @@ def query_overpass_fast(
                 mirror_url,
                 data={"data": query},
                 headers=headers,
-                timeout=20,
+                timeout=25,
             )
             if response.status_code == 429:
                 logging.warning("Mirror %s rate-limited (429) on %s. Rotating...", mirror_url, label)
@@ -1643,7 +1644,7 @@ def restore_cached_points_in_bbox(bbox: List[float]) -> List[Dict[str, Any]]:
         if geom.get("type") != "Point":
             continue
         fid = str(feat.get("properties", {}).get("id", ""))
-        if not fid.startswith(("RESUPPLY_", "MEDICAL_", "BASELINE_", "HAZARDS_")):
+        if not fid.upper().startswith(("RESUPPLY_", "MEDICAL_", "BASELINE_", "HAZARDS_", "GRID_DOWN_")):
             continue
         coords = geom.get("coordinates", [])
         if len(coords) >= 2:
