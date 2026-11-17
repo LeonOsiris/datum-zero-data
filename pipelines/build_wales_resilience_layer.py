@@ -1029,6 +1029,190 @@ VERIFIED_MOD_RESTRICTED_ZONES: List[Dict[str, Any]] = [
     },
 ]
 
+# Verified Welsh Mountain Rescue Bases, Major A&E Hospitals & Strategic Telecom Hills
+VERIFIED_EMERGENCY_AND_COMMS_POINTS: List[Dict[str, Any]] = [
+    {
+        "id": "BASE_MRT_LLANBERIS",
+        "name": "Llanberis Mountain Rescue Team Base",
+        "coords": [-4.1295, 53.1188],
+        "category": "baseline",
+        "plainBadge": "MOUNTAIN RESCUE BASE",
+        "categoryLabel": "MREW MOUNTAIN RESCUE HQ",
+        "accentColor": "#94A3B8",
+        "plainSummary": "Busiest mountain rescue base in the UK, serving Yr Wyddfa (Snowdon) and surrounding peaks.",
+        "metric": "MREW / North Wales Mountain Rescue Association",
+        "action": "Call 999 and ask for Police -> Mountain Rescue in emergencies.",
+    },
+    {
+        "id": "BASE_MRT_OGWEN",
+        "name": "Ogwen Valley Mountain Rescue Base (Bryn Poeth)",
+        "coords": [-3.9985, 53.1235],
+        "category": "baseline",
+        "plainBadge": "MOUNTAIN RESCUE BASE",
+        "categoryLabel": "MREW MOUNTAIN RESCUE HQ",
+        "accentColor": "#94A3B8",
+        "plainSummary": "Mountain rescue station serving Tryfan, the Glyderau, and Carneddau ridges.",
+        "metric": "OVMRO | A5 Capel Curig / Ogwen Corridor",
+        "action": "Call 999 and ask for Police -> Mountain Rescue in emergencies.",
+    },
+    {
+        "id": "BASE_MRT_ABERDYFI",
+        "name": "Aberdyfi Search & Rescue Team Base",
+        "coords": [-4.0455, 52.5435],
+        "category": "baseline",
+        "plainBadge": "MOUNTAIN RESCUE BASE",
+        "categoryLabel": "MREW SEARCH & RESCUE HQ",
+        "accentColor": "#94A3B8",
+        "plainSummary": "Mid-Wales mountain and estuary search & rescue base covering Cadair Idris and the Dyfi.",
+        "metric": "MREW | Southern Eryri & Dyfi Estuary",
+        "action": "Call 999 and ask for Police / Coastguard -> Search & Rescue.",
+    },
+    {
+        "id": "BASE_MRT_BRECON",
+        "name": "Brecon Mountain Rescue Team Base",
+        "coords": [-3.3855, 51.9425],
+        "category": "baseline",
+        "plainBadge": "MOUNTAIN RESCUE BASE",
+        "categoryLabel": "MREW MOUNTAIN RESCUE HQ",
+        "accentColor": "#94A3B8",
+        "plainSummary": "Mountain rescue base serving Pen y Fan and the central Brecon Beacons.",
+        "metric": "SWMRA | Bannau Brycheiniog Central Sector",
+        "action": "Call 999 and ask for Police -> Mountain Rescue in emergencies.",
+    },
+    {
+        "id": "BASE_RNLI_HOLYHEAD",
+        "name": "Holyhead RNLI Lifeboat Station",
+        "coords": [-4.6285, 53.3145],
+        "category": "baseline",
+        "plainBadge": "RNLI LIFEBOAT STATION",
+        "categoryLabel": "RNLI ALL-WEATHER LIFEBOAT",
+        "accentColor": "#94A3B8",
+        "plainSummary": "24/7 all-weather coastal lifeboat station with backup generator power and marine VHF.",
+        "metric": "RNLI Severn-Class All-Weather & D-Class Inshore",
+        "action": "Call 999 and ask for Coastguard for coastal or tidal emergencies.",
+    },
+    {
+        "id": "BASE_RNLI_MUMBLES",
+        "name": "The Mumbles RNLI Lifeboat Station (Swansea)",
+        "coords": [-3.9745, 51.5695],
+        "category": "baseline",
+        "plainBadge": "RNLI LIFEBOAT STATION",
+        "categoryLabel": "RNLI ALL-WEATHER LIFEBOAT",
+        "accentColor": "#94A3B8",
+        "plainSummary": "24/7 coastal lifeboat station guarding Swansea Bay and Bristol Channel approaches.",
+        "metric": "RNLI Tamar-Class All-Weather & D-Class Inshore",
+        "action": "Call 999 and ask for Coastguard for coastal or tidal emergencies.",
+    },
+    {
+        "id": "MED_HOSP_BANGOR",
+        "name": "Ysbyty Gwynedd Major A&E Hospital (Bangor)",
+        "coords": [-4.1605, 53.2095],
+        "category": "medical",
+        "plainBadge": "MAJOR A&E HOSPITAL",
+        "categoryLabel": "NHS WALES ACUTE HOSPITAL",
+        "accentColor": "#10B981",
+        "plainSummary": "24/7 major Accident & Emergency hospital with full trauma care and backup power.",
+        "metric": "Betsi Cadwaladr UHB | 24/7 Emergency Department",
+        "action": "Primary North-West Wales emergency hospital.",
+    },
+    {
+        "id": "MED_HOSP_WREXHAM",
+        "name": "Wrexham Maelor Major A&E Hospital",
+        "coords": [-3.0125, 53.0465],
+        "category": "medical",
+        "plainBadge": "MAJOR A&E HOSPITAL",
+        "categoryLabel": "NHS WALES ACUTE HOSPITAL",
+        "accentColor": "#10B981",
+        "plainSummary": "24/7 major Accident & Emergency hospital serving North-East Wales.",
+        "metric": "Betsi Cadwaladr UHB | 24/7 Emergency Department",
+        "action": "Primary North-East Wales emergency hospital.",
+    },
+    {
+        "id": "MED_HOSP_ABERYSTWYTH",
+        "name": "Bronglais General A&E Hospital (Aberystwyth)",
+        "coords": [-4.0725, 52.4155],
+        "category": "medical",
+        "plainBadge": "MAJOR A&E HOSPITAL",
+        "categoryLabel": "NHS WALES ACUTE HOSPITAL",
+        "accentColor": "#10B981",
+        "plainSummary": "Main Mid-Wales 24/7 Accident & Emergency hospital serving Ceredigion and Powys.",
+        "metric": "Hywel Dda UHB | 24/7 Emergency Department",
+        "action": "Primary Mid-Wales coastal emergency hospital.",
+    },
+    {
+        "id": "MED_HOSP_CARMARTHEN",
+        "name": "Glangwili General A&E Hospital (Carmarthen)",
+        "coords": [-4.2865, 51.8665],
+        "category": "medical",
+        "plainBadge": "MAJOR A&E HOSPITAL",
+        "categoryLabel": "NHS WALES ACUTE HOSPITAL",
+        "accentColor": "#10B981",
+        "plainSummary": "24/7 Accident & Emergency hospital serving Carmarthenshire and West Wales.",
+        "metric": "Hywel Dda UHB | 24/7 Emergency Department",
+        "action": "Primary South-West Wales emergency hospital.",
+    },
+    {
+        "id": "MED_HOSP_SWANSEA",
+        "name": "Morriston Major Trauma & A&E Hospital (Swansea)",
+        "coords": [-3.9355, 51.6845],
+        "category": "medical",
+        "plainBadge": "MAJOR A&E HOSPITAL",
+        "categoryLabel": "NHS WALES ACUTE HOSPITAL",
+        "accentColor": "#10B981",
+        "plainSummary": "Major South-West Wales 24/7 trauma, burns, and Accident & Emergency hospital.",
+        "metric": "Swansea Bay UHB | Regional Trauma & Burns Centre",
+        "action": "Primary Swansea Bay emergency hospital.",
+    },
+    {
+        "id": "MED_HOSP_CARDIFF",
+        "name": "University Hospital of Wales Major Trauma Centre",
+        "coords": [-3.1885, 51.5075],
+        "category": "medical",
+        "plainBadge": "MAJOR TRAUMA HOSPITAL",
+        "categoryLabel": "NHS WALES TERTIARY TRAUMA CENTRE",
+        "accentColor": "#10B981",
+        "plainSummary": "Wales's primary major trauma hospital with 24/7 emergency care and helipad.",
+        "metric": "Cardiff & Vale UHB | Major Trauma Centre",
+        "action": "Tertiary emergency trauma hub for South-East Wales.",
+    },
+    {
+        "id": "GRID_MAST_WENVOE",
+        "name": "Wenvoe Strategic Telecom & Broadcast Tower",
+        "coords": [-3.2818, 51.4595],
+        "category": "grid_down",
+        "plainBadge": "MAJOR TELECOM TOWER",
+        "categoryLabel": "STRATEGIC BROADCAST & TELECOM HUB",
+        "accentColor": "#FFB800",
+        "plainSummary": "Main South Wales TV, radio, and mobile telecom hub with backup diesel generators.",
+        "metric": "300m Guyed Mast | 500 kW ERP Broadcast & Cellular",
+        "action": "Key regional broadcast & emergency radio relay site.",
+    },
+    {
+        "id": "GRID_MAST_MOELYPARC",
+        "name": "Moel-y-Parc Telecom & Radio Tower",
+        "coords": [-3.3145, 53.2255],
+        "category": "grid_down",
+        "plainBadge": "MAJOR TELECOM TOWER",
+        "categoryLabel": "STRATEGIC BROADCAST & TELECOM HUB",
+        "accentColor": "#FFB800",
+        "plainSummary": "Main North-East Wales hilltop TV, radio, and mobile telecom relay tower.",
+        "metric": "235m Mast | Clwydian Range Line-of-Sight",
+        "action": "High-ground line-of-sight landmark for emergency VHF radio.",
+    },
+    {
+        "id": "GRID_MAST_BLAENPLWYF",
+        "name": "Blaenplwyf Coastal Telecom & Radio Tower",
+        "coords": [-4.1145, 52.3715],
+        "category": "grid_down",
+        "plainBadge": "MAJOR TELECOM TOWER",
+        "categoryLabel": "STRATEGIC BROADCAST & TELECOM HUB",
+        "accentColor": "#FFB800",
+        "plainSummary": "Main Mid-Wales coastal broadcast and telecom relay mast near Aberystwyth.",
+        "metric": "235m Mast | Cardigan Bay Coverage",
+        "action": "Key Mid-Wales broadcast and cellular backhaul site.",
+    },
+]
+
 # Wales Air Ambulance & Major Hospital Helipads (Baseline Emergency Aviation)
 VERIFIED_HELIPADS: List[Dict[str, Any]] = [
     {
@@ -1195,15 +1379,48 @@ def build_point_feature(
         metric = "Gravity Spring Discharge | OSM natural=spring"
         action = "Filter with 0.1-micron pump or boil at a rolling boil for 60s."
         weight = 0.0
-    elif tags.get("amenity") == "drinking_water" or tags.get("man_made") == "water_well":
+    elif (
+        tags.get("amenity") == "drinking_water"
+        or tags.get("man_made") in ("water_well", "water_tower")
+    ):
+        is_tower = tags.get("man_made") == "water_tower"
         category = "resupply"
         accent = "#00E5FF"
-        plain_badge = "DRINKING WATER TAP / WELL"
-        label = "POTABLE WATER POINT / BOREHOLE"
-        default_name = "Public Drinking Water Tap / Well"
-        plain_summary = "Public water tap or well. During power cuts, gravity-fed taps may still run briefly."
-        metric = "Potable Tap / Shallow Well | OSM drinking_water"
-        action = "Fill containers early during grid warnings; purify if mains pressure drops."
+        plain_badge = "WATER RESERVOIR TOWER" if is_tower else "DRINKING WATER TAP / WELL"
+        label = "GRAVITY WATER STORAGE" if is_tower else "POTABLE WATER POINT / BOREHOLE"
+        default_name = "Elevated Water Storage Tower" if is_tower else "Public Drinking Water Tap / Well"
+        plain_summary = (
+            "Elevated gravity water tank. Holds pressurized water for a short time after power fails."
+            if is_tower
+            else "Public water tap or well. Fill containers early during grid warnings."
+        )
+        metric = "Gravity Head Storage | OSM water_tower" if is_tower else "Potable Tap / Shallow Well | OSM drinking_water"
+        action = "Fill containers early during grid warnings; filter or boil if mains pressure drops."
+        weight = 0.0
+    elif tags.get("amenity") in ("hospital", "clinic"):
+        is_hosp = tags.get("amenity") == "hospital"
+        category = "medical"
+        accent = "#10B981"
+        plain_badge = "HOSPITAL / A&E" if is_hosp else "MEDICAL CLINIC"
+        label = "NHS WALES HOSPITAL" if is_hosp else "NHS / COMMUNITY MEDICAL CLINIC"
+        default_name = "NHS Hospital" if is_hosp else "Medical & Injury Clinic"
+        plain_summary = (
+            "Major hospital with emergency medical care and backup generator power."
+            if is_hosp
+            else "Local medical clinic for urgent injuries, wounds, and first-aid stabilization."
+        )
+        metric = "NHS Wales Acute Facility" if is_hosp else "NHS / Primary Care Trauma & Triage"
+        action = "Verify A&E vs. Minor Injury Unit opening hours before traveling."
+        weight = 0.0
+    elif tags.get("man_made") == "mast":
+        category = "grid_down"
+        accent = "#FFB800"
+        plain_badge = "TELECOM & RADIO MAST"
+        label = "COMMUNICATIONS TOWER / MAST"
+        default_name = "Mobile & Radio Telecom Mast"
+        plain_summary = "Mobile phone and radio relay tower. High ground nearby gives the strongest signal."
+        metric = "Telecom / Broadcast Mast | High Ground Line-of-Sight"
+        action = "Most mobile masts have 4–12 hr battery backup before failing in prolonged blackouts."
         weight = 0.0
     elif tags.get("aeroway") == "helipad":
         category = "baseline"
@@ -1215,20 +1432,29 @@ def build_point_feature(
         metric = "Designated Helipad | CAA / OSM aeroway=helipad"
         action = "Keep 50m perimeter clear of loose gear, drones, and vehicles during rotor operations."
         weight = 0.0
-    elif tags.get("amenity") == "fire_station" or tags.get("emergency") == "lifeboat_station":
-        is_rnli = tags.get("emergency") == "lifeboat_station"
+    elif (
+        tags.get("amenity") == "fire_station"
+        or tags.get("emergency") in ("lifeboat_station", "mountain_rescue")
+    ):
+        if tags.get("emergency") == "lifeboat_station":
+            plain_badge = "RNLI LIFEBOAT STATION"
+            default_name = "RNLI Coastal Lifeboat Station"
+            plain_summary = "Coastal sea rescue lifeboat station with backup generator power and VHF marine radio."
+            metric = "RNLI Maritime SAR Station"
+        elif tags.get("emergency") == "mountain_rescue":
+            plain_badge = "MOUNTAIN RESCUE BASE"
+            default_name = "Mountain Rescue Team Base"
+            plain_summary = "Volunteer mountain search & rescue base with VHF radio and cold-weather trauma gear."
+            metric = "MREW / North & South Wales Mountain Rescue"
+        else:
+            plain_badge = "FIRE & RESCUE STATION"
+            default_name = "Fire & Rescue Station"
+            plain_summary = "Local Fire & Rescue station — statutory community emergency hub with backup power."
+            metric = "Welsh Fire & Rescue Service Station"
         category = "baseline"
         accent = "#94A3B8"
-        plain_badge = "RNLI LIFEBOAT STATION" if is_rnli else "FIRE & RESCUE STATION"
         label = "STATUTORY EMERGENCY HUB"
-        default_name = "RNLI Coastal Lifeboat Station" if is_rnli else "Fire & Rescue Station"
-        plain_summary = (
-            "Coastal sea rescue lifeboat station with backup generator power and VHF marine radio."
-            if is_rnli
-            else "Local Fire & Rescue station — statutory community emergency hub with backup power."
-        )
-        metric = "RNLI Maritime SAR Station" if is_rnli else "Mid & West / North / South Wales Fire & Rescue"
-        action = "Statutory emergency service base; note stations may be uncrewed while appliances are deployed."
+        action = "Statutory emergency service base; note stations may be uncrewed while teams are deployed."
         weight = 0.0
     elif tags.get("emergency") == "defibrillator":
         category = "medical"
@@ -1685,7 +1911,7 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             "plainBadge": "RADON GAS AREA",
             "plainSummary": rz["plainSummary"],
             "categoryLabel": "RADON GAS ACTION ZONE",
-            "accentColor": "#FF3B30",
+            "accentColor": "#FFB800",
             "threatWeight": 1.0,
             "primaryMetric": rz["metric"],
             "operationalAction": rz["action"],
@@ -1838,7 +2064,7 @@ def build_priority_1_and_2_layers() -> List[Dict[str, Any]]:
             "plainBadge": "MOD FIRING RANGE (NO ENTRY)",
             "plainSummary": mod["plainSummary"],
             "categoryLabel": "MOD RESTRICTED DANGER AREA",
-            "accentColor": "#FFB800",
+            "accentColor": "#FF3B30",
             "threatWeight": 10.0,
             "primaryMetric": mod["metric"],
             "operationalAction": mod["action"],
@@ -1995,6 +2221,26 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
                 },
             }
         )
+    for pt in VERIFIED_EMERGENCY_AND_COMMS_POINTS:
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": pt["coords"]},
+                "properties": {
+                    "id": pt["id"],
+                    "name": pt["name"],
+                    "category": pt["category"],
+                    "plainBadge": pt["plainBadge"],
+                    "plainSummary": pt["plainSummary"],
+                    "categoryLabel": pt["categoryLabel"],
+                    "accentColor": pt["accentColor"],
+                    "threatWeight": 0.0,
+                    "primaryMetric": pt["metric"],
+                    "operationalAction": pt["action"],
+                },
+            }
+        )
+
     for heli in VERIFIED_HELIPADS:
         features.append(
             {
@@ -2024,12 +2270,17 @@ def _fetch_single_poi_tile(
     min_lon, min_lat, max_lon, max_lat = tile_bbox
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
     poi_query = f"""
-    [out:json][timeout:18];
+    [out:json][timeout:20];
     (
       node["natural"="spring"]({bbox_str});
       node["amenity"="drinking_water"]({bbox_str});
       node["man_made"="water_well"]({bbox_str});
+      node["man_made"="water_tower"]({bbox_str});
       node["emergency"="defibrillator"]({bbox_str});
+      node["amenity"="hospital"]({bbox_str});
+      way["amenity"="hospital"]({bbox_str});
+      node["amenity"="clinic"]({bbox_str});
+      node["man_made"="mast"]["tower:type"="communication"]({bbox_str});
       node["man_made"="surveillance"]({bbox_str});
       node["aeroway"="helipad"]({bbox_str});
       way["aeroway"="helipad"]({bbox_str});
@@ -2037,6 +2288,8 @@ def _fetch_single_poi_tile(
       way["amenity"="fire_station"]({bbox_str});
       node["emergency"="lifeboat_station"]({bbox_str});
       way["emergency"="lifeboat_station"]({bbox_str});
+      node["emergency"="mountain_rescue"]({bbox_str});
+      way["emergency"="mountain_rescue"]({bbox_str});
       node["ford"="yes"]["highway"]({bbox_str});
       way["ford"="yes"]["highway"]({bbox_str});
     );
