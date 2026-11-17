@@ -13,11 +13,12 @@ Every feature emits two tiers of text in `properties`:
      revealed when the user expands the bottom sheet.
 """
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1756,10 +1757,20 @@ def build_point_feature(
 def query_overpass_fast(
     query: str, label: str, mirror_offset: int = 0
 ) -> Optional[Dict[str, Any]]:
-    """Execute a fast Overpass query across 2 distinct mirrors with a tight 20s timeout."""
-    headers = {"User-Agent": "DatumZero-ETL/4.3 (Civil Resilience Pipeline)"}
-    n = len(OVERPASS_MIRRORS)
-    ordered_mirrors = [OVERPASS_MIRRORS[(mirror_offset + i) % n] for i in range(min(3, n))]
+    """
+    Execute an Overpass query with polite 429 backoff and mirror failover.
+    Note: overpass-api.de, lz4.overpass-api.de, and z.overpass-api.de share a per-IP
+    concurrency limit, so we alternate between overpass-api.de and kumi.systems and
+    sleep on HTTP 429 instead of hammering the same cluster immediately.
+    """
+    headers = {"User-Agent": "DatumZero-ETL/4.4 (Civil Resilience Pipeline)"}
+    primary_mirrors = [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://lz4.overpass-api.de/api/interpreter",
+    ]
+    n = len(primary_mirrors)
+    ordered_mirrors = [primary_mirrors[(mirror_offset + i) % n] for i in range(n)]
 
     for mirror_url in ordered_mirrors:
         logging.info("Querying Overpass (%s) via %s...", label, mirror_url)
@@ -1768,15 +1779,17 @@ def query_overpass_fast(
                 mirror_url,
                 data={"data": query},
                 headers=headers,
-                timeout=25,
+                timeout=35,
             )
             if response.status_code == 429:
-                logging.warning("Mirror %s rate-limited (429) on %s. Rotating...", mirror_url, label)
+                logging.warning("Mirror %s rate-limited (429) on %s. Backing off 6s...", mirror_url, label)
+                time.sleep(6.0)
                 continue
             response.raise_for_status()
             return response.json()
         except (requests.exceptions.RequestException, json.JSONDecodeError) as exc:
             logging.warning("Mirror %s failed for %s (%s). Failing over...", mirror_url, label, exc)
+            time.sleep(2.0)
     return None
 
 
@@ -2529,113 +2542,98 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
     return features
 
 
-def _fetch_single_poi_tile(
-    tile_idx: int, region_name: str, tile_bbox: List[float]
-) -> Tuple[str, List[float], Optional[Dict[str, Any]]]:
-    min_lon, min_lat, max_lon, max_lat = tile_bbox
-    bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
-    poi_query = f"""
-    [out:json][timeout:20];
-    (
-      node["natural"="spring"]({bbox_str});
-      node["amenity"="drinking_water"]({bbox_str});
-      node["man_made"="water_well"]({bbox_str});
-      node["man_made"="water_tower"]({bbox_str});
-      node["emergency"="defibrillator"]({bbox_str});
-      node["amenity"="hospital"]({bbox_str});
-      way["amenity"="hospital"]({bbox_str});
-      node["amenity"="clinic"]({bbox_str});
-      node["man_made"="mast"]["tower:type"="communication"]({bbox_str});
-      node["man_made"="surveillance"]({bbox_str});
-      node["aeroway"="helipad"]({bbox_str});
-      way["aeroway"="helipad"]({bbox_str});
-      node["amenity"="fire_station"]({bbox_str});
-      way["amenity"="fire_station"]({bbox_str});
-      node["emergency"="lifeboat_station"]({bbox_str});
-      way["emergency"="lifeboat_station"]({bbox_str});
-      node["emergency"="mountain_rescue"]({bbox_str});
-      way["emergency"="mountain_rescue"]({bbox_str});
-      node["ford"="yes"]["highway"]({bbox_str});
-      way["ford"="yes"]["highway"]({bbox_str});
-    );
-    out center;
-    """
-    return (
-        region_name,
-        tile_bbox,
-        query_overpass_fast(poi_query, f"POIs {region_name}", mirror_offset=tile_idx),
-    )
-
-
 def harvest_osm_layers() -> List[Dict[str, Any]]:
-    """Extract OSM POIs, power lines & trunk bridges concurrently across distinct mirrors."""
+    """
+    Extract OSM POIs across 9 balanced sub-tiles + high-voltage power lines & trunk bridges.
+    Executes 1 Overpass request at a time with 2.0s pacing so public Overpass mirrors never
+    trigger concurrent-IP HTTP 429 drops on North-West Wales.
+    """
     point_features: List[Dict[str, Any]] = []
     seen_ids = set()
+
+    for tile_idx, (region_name, tile_bbox) in enumerate(WALES_SUBTILES):
+        min_lon, min_lat, max_lon, max_lat = tile_bbox
+        bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+        poi_query = f"""
+        [out:json][timeout:30];
+        (
+          node["natural"="spring"]({bbox_str});
+          node["amenity"="drinking_water"]({bbox_str});
+          node["man_made"="water_well"]({bbox_str});
+          node["man_made"="water_tower"]({bbox_str});
+          node["emergency"="defibrillator"]({bbox_str});
+          nwr["amenity"="hospital"]({bbox_str});
+          node["amenity"="clinic"]({bbox_str});
+          node["man_made"="mast"]["tower:type"="communication"]({bbox_str});
+          node["man_made"="surveillance"]({bbox_str});
+          nwr["aeroway"="helipad"]({bbox_str});
+          nwr["amenity"="fire_station"]({bbox_str});
+          nwr["emergency"="lifeboat_station"]({bbox_str});
+          nwr["emergency"="mountain_rescue"]({bbox_str});
+          node["ford"="yes"]["highway"]({bbox_str});
+          way["ford"="yes"]["highway"]({bbox_str});
+        );
+        out center;
+        """
+        poi_data = query_overpass_fast(
+            poi_query, f"POIs {region_name}", mirror_offset=tile_idx
+        )
+        if poi_data is not None:
+            tile_count = 0
+            for el in poi_data.get("elements", []):
+                el_type = el.get("type", "node")
+                el_id = f"{el_type}_{el.get('id', '')}"
+                if not el.get("id") or el_id in seen_ids:
+                    continue
+
+                if el_type == "node":
+                    lat = el.get("lat")
+                    lon = el.get("lon")
+                else:
+                    center = el.get("center", {})
+                    lat = center.get("lat")
+                    lon = center.get("lon")
+
+                if lat is None or lon is None:
+                    continue
+
+                pt = build_point_feature(
+                    el_id, float(lon), float(lat), el.get("tags", {})
+                )
+                if pt:
+                    seen_ids.add(el_id)
+                    point_features.append(pt)
+                    tile_count += 1
+            logging.info("Extracted %d points for %s.", tile_count, region_name)
+        else:
+            logging.warning(
+                "Tile %s unavailable; restoring cached points for this sector.",
+                region_name,
+            )
+            for cached_pt in restore_cached_points_in_bbox(tile_bbox):
+                cid = str(cached_pt.get("properties", {}).get("id", ""))
+                if cid and cid not in seen_ids:
+                    seen_ids.add(cid)
+                    point_features.append(cached_pt)
+        time.sleep(2.0)
 
     min_lon, min_lat, max_lon, max_lat = WALES_BBOX
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
 
     power_query = f"""
-    [out:json][timeout:18];
+    [out:json][timeout:30];
     way["power"="line"]({bbox_str});
     out geom;
     """
+    power_data = query_overpass_fast(power_query, "PowerLines", mirror_offset=0)
+    time.sleep(2.0)
+
     bridge_query = f"""
-    [out:json][timeout:18];
+    [out:json][timeout:30];
     way["bridge"="yes"]["highway"~"^(trunk|primary)$"]({bbox_str});
     out geom;
     """
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        tile_futures = [
-            pool.submit(_fetch_single_poi_tile, idx, name, bbox)
-            for idx, (name, bbox) in enumerate(WALES_SUBTILES)
-        ]
-        power_future = pool.submit(query_overpass_fast, power_query, "PowerLines", 1)
-        bridge_future = pool.submit(query_overpass_fast, bridge_query, "TrunkBridges", 2)
-
-        for fut in as_completed(tile_futures):
-            region_name, tile_bbox, poi_data = fut.result()
-            if poi_data is not None:
-                tile_count = 0
-                for el in poi_data.get("elements", []):
-                    el_type = el.get("type", "node")
-                    el_id = f"{el_type}_{el.get('id', '')}"
-                    if not el.get("id") or el_id in seen_ids:
-                        continue
-
-                    if el_type == "node":
-                        lat = el.get("lat")
-                        lon = el.get("lon")
-                    else:
-                        center = el.get("center", {})
-                        lat = center.get("lat")
-                        lon = center.get("lon")
-
-                    if lat is None or lon is None:
-                        continue
-
-                    pt = build_point_feature(
-                        el_id, float(lon), float(lat), el.get("tags", {})
-                    )
-                    if pt:
-                        seen_ids.add(el_id)
-                        point_features.append(pt)
-                        tile_count += 1
-                logging.info("Extracted %d points for %s.", tile_count, region_name)
-            else:
-                logging.warning(
-                    "Tile %s unavailable; restoring cached points for this sector.",
-                    region_name,
-                )
-                for cached_pt in restore_cached_points_in_bbox(tile_bbox):
-                    cid = str(cached_pt.get("properties", {}).get("id", ""))
-                    if cid and cid not in seen_ids:
-                        seen_ids.add(cid)
-                        point_features.append(cached_pt)
-
-        power_data = power_future.result()
-        bridge_data = bridge_future.result()
+    bridge_data = query_overpass_fast(bridge_query, "TrunkBridges", mirror_offset=1)
 
     if power_data is not None:
         power_lines: List[Tuple[LineString, int, str]] = []
