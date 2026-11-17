@@ -5,23 +5,30 @@ on:
   schedule:
     - cron: '0 */6 * * *'
 
+concurrency:
+  group: datum-zero-etl
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
   build-geospatial-layers:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.11 (With Pip Wheel Cache)
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: '.github/workflows/main.yml'
 
       - name: Install Spatial Python Libraries
-        run: pip install requests geopandas shapely pyproj
+        run: pip install --quiet requests geopandas shapely pyproj
 
       - name: Run Wales Spatial ETL Pipeline
         run: python pipelines/build_wales_resilience_layer.py
