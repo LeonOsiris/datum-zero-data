@@ -1,9 +1,10 @@
 """
 pipelines/build_wales_resilience_layer.py
 Deterministic zero-token spatial ETL compiling Welsh open data into Datum Zero GeoJSON.
-- Queries Overpass in 3 fast regional tiles (North, Mid, South Wales) to prevent timeouts.
-- Preserves previously compiled OSM features on transient mirror outages (never wipes data).
-- Generates fixed-scale metric Polygon Threat Clouds (EPSG:27700 -> EPSG:4326).
+- Queries Overpass across 6 balanced regional tiles (NW, NE, MW, ME, SW, SE Wales) so
+  dense urban corridors (Cardiff, Swansea, Valleys, Wrexham) never time out.
+- Preserves previously compiled features per-tile if an individual sub-tile times out.
+- Filters river fords strictly to vehicular highway crossings (eliminating farm-track noise).
 """
 
 import json
@@ -28,11 +29,14 @@ WALES_BBOX = [-5.5, 51.3, -2.6, 53.5]
 OUTPUT_FILE = Path("dist/wales_resilience_master.geojson")
 DATAMAPWALES_WFS_URL = "https://datamap.gov.wales/geoserver/ows"
 
-# Regional sub-tiles [min_lon, min_lat, max_lon, max_lat] for fast <3s Overpass queries
+# 6 balanced regional tiles [min_lon, min_lat, max_lon, max_lat] to prevent urban Overpass timeouts
 WALES_SUBTILES: List[Tuple[str, List[float]]] = [
-    ("North Wales", [-5.5, 52.75, -2.8, 53.5]),
-    ("Mid Wales", [-5.5, 52.00, -2.8, 52.75]),
-    ("South Wales", [-5.5, 51.30, -2.6, 52.00]),
+    ("North-West Wales (Eryri & Anglesey)", [-5.5, 52.75, -3.6, 53.5]),
+    ("North-East Wales (Clwyd & Dee)", [-3.6, 52.75, -2.8, 53.5]),
+    ("Mid-West Wales (Ceredigion)", [-5.5, 52.00, -3.7, 52.75]),
+    ("Mid-East Wales (Powys)", [-3.7, 52.00, -2.9, 52.75]),
+    ("South-West Wales (Pembroke & Carmarthen)", [-5.5, 51.30, -3.9, 52.00]),
+    ("South-East Wales (Swansea, Valleys & Cardiff)", [-3.9, 51.30, -2.6, 52.00]),
 ]
 
 OVERPASS_MIRRORS = [
@@ -328,6 +332,9 @@ VERIFIED_FLOOD_CORRIDORS: List[Dict[str, Any]] = [
     },
 ]
 
+# Non-vehicular path types excluded from river ford hazard classification
+MINOR_PATH_TYPES = {"footway", "path", "track", "bridleway", "cycleway", "steps"}
+
 
 def round_coordinates(coords: Any, precision: int = 5) -> Any:
     """Recursively round GeoJSON coordinates to keep mobile WebGL payloads compact."""
@@ -447,6 +454,10 @@ def build_point_feature(
         action = "Public right-of-way camera installation."
         weight = 0.0
     elif tags.get("ford") == "yes":
+        # Only retain named or vehicular road fords; skip un-named farm track stream crossings
+        hw = str(tags.get("highway", "")).lower()
+        if hw in MINOR_PATH_TYPES and not tags.get("name"):
+            return None
         category = "hazards"
         accent = "#FF3B30"
         label = "UNMONITORED RIVER FORD"
@@ -478,7 +489,7 @@ def build_point_feature(
 
 def query_overpass_fast(query: str, label: str) -> Optional[Dict[str, Any]]:
     """Execute a lightweight Overpass query with mirror failover."""
-    headers = {"User-Agent": "DatumZero-ETL/3.2 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/3.3 (Civil Resilience Pipeline)"}
     for mirror_url in OVERPASS_MIRRORS:
         logging.info("Querying Overpass (%s) via %s...", label, mirror_url)
         try:
@@ -486,7 +497,7 @@ def query_overpass_fast(query: str, label: str) -> Optional[Dict[str, Any]]:
                 mirror_url,
                 data={"data": query},
                 headers=headers,
-                timeout=35,
+                timeout=45,
             )
             response.raise_for_status()
             return response.json()
@@ -496,23 +507,49 @@ def query_overpass_fast(query: str, label: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def load_cached_features_by_prefix(prefixes: Tuple[str, ...]) -> List[Dict[str, Any]]:
-    """Preserve previously compiled OSM features if Overpass mirrors temporarily time out."""
+def load_existing_geojson_features() -> List[Dict[str, Any]]:
+    """Load previously compiled features from dist/wales_resilience_master.geojson if present."""
     if not OUTPUT_FILE.exists():
         return []
     try:
         with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
             existing = json.load(f)
-        preserved = [
-            feat
-            for feat in existing.get("features", [])
-            if str(feat.get("properties", {}).get("id", "")).startswith(prefixes)
-        ]
-        if preserved:
-            logging.info("Preserved %d cached features matching %s.", len(preserved), prefixes)
-        return preserved
+        return existing.get("features", [])
     except (OSError, json.JSONDecodeError):
         return []
+
+
+def load_cached_features_by_prefix(prefixes: Tuple[str, ...]) -> List[Dict[str, Any]]:
+    """Preserve previously compiled OSM features if Overpass mirrors temporarily time out."""
+    preserved = [
+        feat
+        for feat in load_existing_geojson_features()
+        if str(feat.get("properties", {}).get("id", "")).startswith(prefixes)
+    ]
+    if preserved:
+        logging.info("Preserved %d cached features matching %s.", len(preserved), prefixes)
+    return preserved
+
+
+def restore_cached_points_in_bbox(bbox: List[float]) -> List[Dict[str, Any]]:
+    """Restore previously compiled OSM Point features inside a specific sub-tile bbox."""
+    min_lon, min_lat, max_lon, max_lat = bbox
+    restored: List[Dict[str, Any]] = []
+    for feat in load_existing_geojson_features():
+        geom = feat.get("geometry", {})
+        if geom.get("type") != "Point":
+            continue
+        fid = str(feat.get("properties", {}).get("id", ""))
+        if not fid.startswith(("RESUPPLY_", "MEDICAL_", "BASELINE_", "HAZARDS_")):
+            continue
+        coords = geom.get("coordinates", [])
+        if len(coords) >= 2:
+            lon, lat = float(coords[0]), float(coords[1])
+            if min_lon <= lon <= max_lon and min_lat <= lat <= max_lat:
+                restored.append(feat)
+    if restored:
+        logging.info("Restored %d cached OSM points inside bbox %s.", len(restored), bbox)
+    return restored
 
 
 def generate_emf_corridor_polygons(
@@ -686,7 +723,7 @@ def harvest_datamapwales_flood_zones() -> List[Dict[str, Any]]:
         "srsName": "EPSG:4326",
         "count": "150",
     }
-    headers = {"User-Agent": "DatumZero-ETL/3.2 (Civil Resilience Pipeline)"}
+    headers = {"User-Agent": "DatumZero-ETL/3.3 (Civil Resilience Pipeline)"}
     features: List[Dict[str, Any]] = []
 
     try:
@@ -838,27 +875,27 @@ def get_static_baseline_features() -> List[Dict[str, Any]]:
 
 
 def harvest_osm_layers() -> List[Dict[str, Any]]:
-    """Extract OSM POIs in 3 regional sub-tiles + high-voltage power lines & trunk bridges."""
+    """Extract OSM POIs across 6 balanced sub-tiles + high-voltage power lines & trunk bridges."""
     point_features: List[Dict[str, Any]] = []
     seen_ids = set()
-    poi_success_tiles = 0
 
-    # Query 1: Regional sub-tiled Point POIs (Springs, AEDs, CCTV, River Fords)
-    for region_name, (min_lon, min_lat, max_lon, max_lat) in WALES_SUBTILES:
+    # Query 1: 6 regional sub-tiles so North & South Wales urban centres never time out
+    for region_name, tile_bbox in WALES_SUBTILES:
+        min_lon, min_lat, max_lon, max_lat = tile_bbox
         bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
         poi_query = f"""
-        [out:json][timeout:30];
+        [out:json][timeout:40];
         (
           node["natural"="spring"]({bbox_str});
           node["emergency"="defibrillator"]({bbox_str});
           node["man_made"="surveillance"]({bbox_str});
-          node["ford"="yes"]({bbox_str});
+          node["ford"="yes"]["highway"]({bbox_str});
         );
         out body;
         """
         poi_data = query_overpass_fast(poi_query, f"POIs {region_name}")
         if poi_data is not None:
-            poi_success_tiles += 1
+            tile_count = 0
             for el in poi_data.get("elements", []):
                 el_id = str(el.get("id", ""))
                 if not el_id or el_id in seen_ids:
@@ -873,20 +910,23 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
                 if pt:
                     seen_ids.add(el_id)
                     point_features.append(pt)
+                    tile_count += 1
+            logging.info("Extracted %d points for %s.", tile_count, region_name)
+        else:
+            logging.warning("Tile %s timed out; restoring cached points for this sector.", region_name)
+            for cached_pt in restore_cached_points_in_bbox(tile_bbox):
+                cid = str(cached_pt.get("properties", {}).get("id", ""))
+                if cid and cid not in seen_ids:
+                    seen_ids.add(cid)
+                    point_features.append(cached_pt)
         time.sleep(1.5)
-
-    if poi_success_tiles == 0:
-        logging.warning("All POI tiles failed; restoring cached OSM Point features.")
-        point_features = load_cached_features_by_prefix(
-            ("RESUPPLY_", "MEDICAL_", "BASELINE_", "HAZARDS_")
-        )
 
     min_lon, min_lat, max_lon, max_lat = WALES_BBOX
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
 
     # Query 2: High-Voltage Power Lines
     power_query = f"""
-    [out:json][timeout:40];
+    [out:json][timeout:45];
     way["power"="line"]({bbox_str});
     out geom;
     """
@@ -895,7 +935,7 @@ def harvest_osm_layers() -> List[Dict[str, Any]]:
 
     # Query 3: Trunk & Primary Road Bridges (Single-Access Choke Points)
     bridge_query = f"""
-    [out:json][timeout:40];
+    [out:json][timeout:45];
     way["bridge"="yes"]["highway"~"^(trunk|primary)$"]({bbox_str});
     out geom;
     """
@@ -947,7 +987,6 @@ def main() -> None:
     verified_hazards = build_verified_hazard_layers()
     dmw_flood_zones = harvest_datamapwales_flood_zones()
 
-    # Deduplicate by feature ID so static guarantees never collide with cached OSM points
     merged_by_id: Dict[str, Dict[str, Any]] = {}
     for feat in (
         static_baseline + verified_hazards + dmw_flood_zones + osm_features
